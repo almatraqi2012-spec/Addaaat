@@ -14,7 +14,7 @@ from telethon.errors import SessionPasswordNeededError, FloodWaitError
 # ================= [ 🛠️ إعداداتك الخاصة ] =================
 BOT_TOKEN = "8574116889:AAFwu0ol0Cj4E2Ynn_9iuPcJKFiGz-kwcqA"
 MY_API_ID = 23269382
-MY_API_HASH = 'fe19c565fb43787fe19c565fb4378bd5128885428ff8e26'
+MY_API_HASH = 'fe19c565fb4378bd5128885428ff8e26'
 ADMIN_ID = 5163375125
 OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU"
 PRICE_PER_MEMBER = 0.01  

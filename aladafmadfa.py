@@ -7,7 +7,7 @@ import os
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRequest
-from telethon.errors import SessionPasswordNeededError, FloodWaitError, UserPrivacyRestrictedError
+from telethon.errors import SessionPasswordNeededError, FloodWaitError
 
 # ================= [ 🛠️ إعدادات البوت ] =================
 BOT_TOKEN = "8574116889:AAFwu0ol0Cj4E2Ynn_9iuPcJKFiGz-kwcqA"
@@ -30,16 +30,24 @@ def init_db():
     conn.close()
 
 def get_balance(uid):
+    init_db()
     conn = sqlite3.connect('mega_bot.db')
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM users WHERE user_id=?", (uid,))
     res = cursor.fetchone()
     conn.close()
-    return round(res[0], 2) if res else 0.0
+    if res:
+        return round(float(res[0]), 2)
+    return 0.0
 
 def update_balance(uid, amount):
     conn = sqlite3.connect('mega_bot.db')
-    conn.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, uid))
+    cursor = conn.cursor()
+    cursor.execute("SELECT balance FROM users WHERE user_id=?", (uid,))
+    if cursor.fetchone():
+        conn.execute("UPDATE users SET balance = balance + ? WHERE user_id=?", (amount, uid))
+    else:
+        conn.execute("INSERT INTO users (user_id, balance) VALUES (?, ?)", (uid, amount))
     conn.commit()
     conn.close()
 
@@ -50,7 +58,7 @@ def start(message):
     markup.add("👤 حسابي", "🔄 بدء نقل أعضاء")
     markup.add("➕ إضافة حسابات للنقل", "🗑️ حذف حساباتي")
     markup.add("💰 شحن الرصيد")
-    bot.send_message(message.chat.id, f"🐲 **مرحباً بك في بوت دراجون النهائي**\n💰 رصيدك الحالي: `{get_balance(message.chat.id)}$`", reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(message.chat.id, f"🐲 **مرحباً بك في بوت دراجون**\n💰 رصيدك الحالي: `{get_balance(message.chat.id)}$`", reply_markup=markup, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def my_account(message):
@@ -59,51 +67,61 @@ def my_account(message):
     conn = sqlite3.connect('mega_bot.db')
     acc_count = conn.execute("SELECT COUNT(*) FROM user_accounts WHERE user_id=?", (uid,)).fetchone()[0]
     conn.close()
-    bot.send_message(uid, f"📊 **معلومات حسابك:**\n\n🆔 الآيدي: `{uid}`\n💰 الرصيد: `{bal}$`\n📱 الحسابات المضافة: `{acc_count}`", parse_mode="Markdown")
+    bot.send_message(uid, f"📊 **معلومات حسابك:**\n\n🆔 الآيدي: `{uid}`\n💰 الرصيد الحالي: `{bal}$`\n📱 الحسابات المضافة: `{acc_count}`", parse_mode="Markdown")
 
-# --- محرك النقل مع تحديث مباشر للعدد ---
+# --- محرك النقل المعدل (حل مشكلة رفض الرصيد) ---
 @bot.message_handler(func=lambda m: m.text == "🔄 بدء نقل أعضاء")
 def transfer_start(message):
     uid = message.chat.id
+    bal = get_balance(uid)
     conn = sqlite3.connect('mega_bot.db')
     acc_count = conn.execute("SELECT COUNT(*) FROM user_accounts WHERE user_id=?", (uid,)).fetchone()[0]
     conn.close()
-    if acc_count == 0: return bot.send_message(uid, "⚠️ لا توجد حسابات مضافة للنقل!")
-    if get_balance(uid) <= 0: return bot.send_message(uid, "❌ رصيدك غير كافٍ.")
+
+    if acc_count == 0: 
+        return bot.send_message(uid, "⚠️ يجب إضافة حسابات أولاً!")
     
-    msg = bot.send_message(uid, "📦 **أرسل رابط المجموعة المصدر:**")
+    if bal < PRICE_PER_MEMBER:
+        return bot.send_message(uid, f"❌ رصيدك الحالي ({bal}$) أقل من سعر عضو واحد ({PRICE_PER_MEMBER}$).")
+
+    max_members = int(bal / PRICE_PER_MEMBER)
+    msg = bot.send_message(uid, f"✅ رصيدك يسمح بنقل حتى **{max_members}** عضو.\n📦 أرسل رابط المجموعة المصدر:")
     bot.register_next_step_handler(msg, step_2)
 
 def step_2(message):
     source = message.text.strip()
-    msg = bot.send_message(message.chat.id, "🎯 **أرسل رابط مجموعتك (الهدف):**")
+    msg = bot.send_message(message.chat.id, "🎯 أرسل رابط مجموعتك (الهدف):")
     bot.register_next_step_handler(msg, step_3, source)
 
 def step_3(message, source):
     target = message.text.strip()
-    msg = bot.send_message(message.chat.id, "🔢 **كم عدد الأعضاء المطلوب نقلهم؟**")
+    msg = bot.send_message(message.chat.id, "🔢 كم عدد الأعضاء المطلوب نقلهم؟")
     bot.register_next_step_handler(msg, run_transfer, source, target)
 
 def run_transfer(message, source, target):
     try:
-        count = int(message.text.strip())
+        requested_count = int(message.text.strip())
         uid = message.chat.id
-        cost = count * PRICE_PER_MEMBER
-        if get_balance(uid) < cost: return bot.send_message(uid, f"❌ رصيدك لا يكفي.")
+        bal = get_balance(uid)
+        
+        # السماح بنقل الممكن فقط بناء على الرصيد
+        allowed_count = int(bal / PRICE_PER_MEMBER)
+        final_target_count = min(requested_count, allowed_count)
 
-        # رسالة البدء
-        status_msg = bot.send_message(uid, "🚀 **بدأ التنين بالنبش.. انتظر قليلاً...**")
+        if final_target_count <= 0:
+            return bot.send_message(uid, "❌ رصيدك لا يكفي لهذا العدد.")
+
+        status_msg = bot.send_message(uid, f"🚀 بدأنا! جاري نقل {final_target_count} عضو...")
 
         conn = sqlite3.connect('mega_bot.db')
         sessions = [r[0] for r in conn.execute("SELECT session_string FROM user_accounts WHERE user_id=?", (uid,)).fetchall()]
         conn.close()
 
         added = 0
-
         async def main_logic():
             nonlocal added
             for s in sessions:
-                if added >= count: break
+                if added >= final_target_count: break
                 client = TelegramClient(StringSession(s), MY_API_ID, MY_API_HASH)
                 try:
                     await client.connect()
@@ -112,19 +130,17 @@ def run_transfer(message, source, target):
                     await client(JoinChannelRequest(s_ent))
                     await client(JoinChannelRequest(t_ent))
                     
-                    # نبش الأعضاء من الرسائل (تخطي الإخفاء)
                     users = set()
-                    async for m in client.iter_messages(s_ent, limit=500):
+                    async for m in client.iter_messages(s_ent, limit=400):
                         if m.sender_id and not m.sender.bot: users.add(m.sender_id)
                     
                     for u_id in users:
-                        if added >= count: break
+                        if added >= final_target_count: break
                         try:
                             await client(InviteToChannelRequest(t_ent, [u_id]))
                             added += 1
-                            # تحديث المستخدم كل 5 أعضاء عشان ما يمل
                             if added % 5 == 0:
-                                try: bot.edit_message_text(f"⏳ جاري النقل... تم إضافة {added} عضو حتى الآن.", uid, status_msg.message_id)
+                                try: bot.edit_message_text(f"⏳ جاري النقل... تم إضافة {added} عضو.", uid, status_msg.message_id)
                                 except: pass
                             await asyncio.sleep(2)
                         except FloodWaitError: break
@@ -136,17 +152,16 @@ def run_transfer(message, source, target):
         asyncio.set_event_loop(loop)
         loop.run_until_complete(main_logic())
 
-        # التقرير النهائي (هذا اللي يهمك)
         if added > 0:
-            final_cost = round(added * PRICE_PER_MEMBER, 2)
-            update_balance(uid, -final_cost)
-            bot.send_message(uid, f"✅ **تمت العملية بنجاح!**\n\n➕ **تم إضافة:** {added} عضو\n💸 **المبلغ المخصوم:** {final_cost}$\n💰 **رصيدك الحالي:** {get_balance(uid)}$", parse_mode="Markdown")
+            total_cost = round(added * PRICE_PER_MEMBER, 2)
+            update_balance(uid, -total_cost)
+            bot.send_message(uid, f"✅ تم النقل بنجاح!\n➕ العدد المضاف: {added}\n💸 الخصم: {total_cost}$\n💰 الرصيد الباقي: {get_balance(uid)}$")
         else:
-            bot.send_message(uid, "❌ **فشل النقل:** لم يتم العثور على أعضاء متاحين للنقل حالياً.")
-            
-    except: bot.send_message(message.chat.id, "⚠️ حدث خطأ في البيانات المدخلة.")
+            bot.send_message(uid, "❌ فشل النقل. تأكد من الروابط وحالة الحسابات.")
+    except:
+        bot.send_message(message.chat.id, "⚠️ خطأ في البيانات.")
 
-# --- دوال الشحن وإدارة الحسابات (نفس الكود السابق المتكامل) ---
+# --- دوال الشحن وإدارة الحسابات ---
 @bot.message_handler(func=lambda m: m.text == "💰 شحن الرصيد")
 def deposit(message):
     markup = types.InlineKeyboardMarkup()
@@ -164,8 +179,8 @@ def query_handler(call):
     elif call.data.startswith("adm_ok"):
         _, _, amt, t_id = call.data.split("_")
         update_balance(int(t_id), float(amt))
-        bot.send_message(int(t_id), f"✅ تم شحن {amt}$!")
-        bot.edit_message_caption("✅ تم التأكيد", call.message.chat.id, call.message.message_id)
+        bot.send_message(int(t_id), f"✅ تم شحن {amt}$ في رصيدك!")
+        bot.edit_message_caption(f"✅ تم تأكيد شحن {amt}$", call.message.chat.id, call.message.message_id)
     elif call.data.startswith("del_"):
         aid = call.data.split("_")[1]
         conn = sqlite3.connect('mega_bot.db')
@@ -185,9 +200,12 @@ def create_inv(message):
 
 def receive_p(message):
     if message.content_type == 'photo':
-        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("✅ 5$", callback_data=f"adm_ok_5_{message.chat.id}"), types.InlineKeyboardButton("✅ 10$", callback_data=f"adm_ok_10_{message.chat.id}"))
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("✅ شحن 5$", callback_data=f"adm_ok_5_{message.chat.id}"), 
+                   types.InlineKeyboardButton("✅ شحن 10$", callback_data=f"adm_ok_10_{message.chat.id}"),
+                   types.InlineKeyboardButton("✅ شحن 20$", callback_data=f"adm_ok_20_{message.chat.id}"))
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"📩 طلب شحن من: {message.chat.id}", reply_markup=markup)
-        bot.send_message(message.chat.id, "⏳ جاري المراجعة...")
+        bot.send_message(message.chat.id, "⏳ جاري المراجعة من الإدارة...")
 
 @bot.message_handler(func=lambda m: m.text == "➕ إضافة حسابات للنقل")
 def add_phone(message):
@@ -232,5 +250,4 @@ def del_acc(message):
     bot.send_message(message.chat.id, "اختر الحساب لحذفه:", reply_markup=markup)
 
 init_db()
-print("🚀 بوت دراجون المطور يعمل الآن...")
 bot.infinity_polling()

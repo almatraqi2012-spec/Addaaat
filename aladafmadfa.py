@@ -75,7 +75,7 @@ def start(m):
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.add("👤 حسابي", "🔄 بدء النقل", "➕ إضافة حسابات", "💰 الشحن")
     bot.send_message(m.chat.id, "🐲 دراجون V5: القوة والصدق.", reply_markup=kb)
-
+هذا
 @bot.message_handler(func=lambda m: m.text == "💰 الشحن")
 def pay_msg(m):
     kb = types.InlineKeyboardMarkup()

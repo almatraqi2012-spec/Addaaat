@@ -52,7 +52,7 @@ def back_markup():
 def start_cmd(m):
     db_manage("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (m.chat.id,))
     bal = db_manage("SELECT balance FROM users WHERE user_id=?", (m.chat.id,), True)[0][0]
-    bot.send_message(m.chat.id, f"🐲 **مرحباً بك في دراجون V10 (النسخة الكاملة)**\n💰 رصيدك الحالي: `{bal:.2f}$`", reply_markup=main_markup(), parse_mode="Markdown")
+    bot.send_message(m.chat.id, f"🐲 **مرحباً بك في دراجون V10 **\n💰 رصيدك الحالي: `{bal:.2f}$`", reply_markup=main_markup(), parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def my_account(m):

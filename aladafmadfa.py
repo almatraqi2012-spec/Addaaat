@@ -7,8 +7,8 @@ from telethon.tl.types import User
 
 # ================= [ 🛠️ الإعدادات ] =================
 BOT_TOKEN = "8574116889:AAFwu0ol0Cj4E2Ynn_9iuPcJKFiGz-kwcqA"
-API_ID = 26569209
-API_HASH = '1f52802d99787e2213a8089417032724'
+API_ID = 23269382
+API_HASH = 'fe19c565fb4378bd5128885428ff8e26'
 ADMIN_ID = 5163375125  
 PRICE_PER_MEMBER = 0.05 
 OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU"

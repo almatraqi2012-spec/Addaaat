@@ -8,7 +8,7 @@ from telethon.tl.types import User, ChannelParticipantsSearch
 # ================= [ 🛠️ الإعدادات الرسمية ] =================
 BOT_TOKEN = "8574116889:AAFwu0ol0Cj4E2Ynn_9iuPcJKFiGz-kwcqA"
 # الـ API الرسمي القوي لتخطي الحظر
-API_ID = 6 
+API_ID = 6
 API_HASH = 'eb06d4ab3521ad1297469cd2db5d1cae'
 
 ADMIN_ID = 5163375125  

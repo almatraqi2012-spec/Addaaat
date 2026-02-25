@@ -193,7 +193,7 @@ def main_kb():
 @bot.message_handler(commands=['start'])
 def welcome(m):
     if m.chat.id not in GLOBAL_BALANCES: update_bal(m.chat.id, 0.0)
-    bot.send_message(m.chat.id, f"🐲 **دراجون V44 جاهز للعمل!**\n💰 رصيدك الحالي: `{GLOBAL_BALANCES.get(m.chat.id, 0.0):.2f}$`", reply_markup=main_kb())
+    bot.send_message(m.chat.id, f"🐲 **دراجون V+44 جاهز للعمل!**\n💰 رصيدك الحالي: `{GLOBAL_BALANCES.get(m.chat.id, 0.0):.2f}$`", reply_markup=main_kb())
 
 @bot.message_handler(func=lambda m: m.text == "🔄 بدء نقل أعضاء")
 def move_start(m):

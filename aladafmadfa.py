@@ -147,7 +147,7 @@ def add_acc1(m):
 
 def add_acc2(m):
     p = m.text.strip()
-    cl = TelegramClient(StringSession(), API_ID, API_HASH, device_model="DragonV44", system_version="Android 12")
+    cl = TelegramClient(StringSession(), API_ID, API_HASH, device_model="iPhone 15 Pro Max", system_version="iOS 17.2", app_version="10.3.1")
     async def con(): 
         await cl.connect()
         try:

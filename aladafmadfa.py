@@ -8,10 +8,10 @@ from telethon.tl.types import ChannelParticipantsRecent
 from telethon.errors import SessionPasswordNeededError, FloodWaitError, UserPrivacyRestrictedError
 
 # ================= [ ⚙️ الإعدادات - عدل هذه فقط ] =================
-BOT_TOKEN = "8574116889:AAFwu0ol0Cj4E2Ynn_9iuPcJKFiGz-kwcqA"
+BOT_TOKEN = "8734744165:AAF_DqBazdsIRk_TcBcMP3ovdpo2ygNO53o"
 MY_API_ID = 21349867
 MY_API_HASH = '7ced3ee4c80117bd5138410811b91f9f'
-ADMIN_ID = 5163375125
+ADMIN_ID = 6016547718
 OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU"
 MY_WALLET = "TLtLuhkU2kkkR1Wz1TtrBTpoNRTNviYpsA" # محفظتك USDT
 PRICE_PER_MEMBER = 0.01 

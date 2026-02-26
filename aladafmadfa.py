@@ -48,7 +48,7 @@ def main_menu():
 
 @bot.message_handler(commands=['start'])
 def start(m):
-    bot.send_message(m.chat.id, f"🐲 **أهلاً بك في محرقة دراجون!**\n💰 رصيدك: `{get_balance(m.chat.id)}$`", reply_markup=main_menu(), parse_mode="Markdown")
+    bot.send_message(m.chat.id, f"🐲 **أهلاً بك في بوت دراجون!**\n💰 رصيدك: `{get_balance(m.chat.id)}$`", reply_markup=main_menu(), parse_mode="Markdown")
 
 # --- [ 1: نظام الشحن ] ---
 @bot.message_handler(func=lambda m: m.text == "💰 شحن الرصيد")
@@ -220,7 +220,7 @@ def tr_final(m, src, trg):
             print(f"خطأ في الحساب: {e}")
             continue
 
-    bot.send_message(uid, f"🏁 **اكتملت الغزوة الإمبراطورية!**\n✅ الإجمالي الذي تم جره فعلياً: `{global_success}`")
+    bot.send_message(uid, f"🏁 **اكتملت الغزوة الإمبراطورية!**\n✅ الإجمالي الذي تم إضافته فعلياً: `{global_success}`")
 
 
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")

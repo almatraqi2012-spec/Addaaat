@@ -161,44 +161,67 @@ def tr_final(m, src, trg):
         bot.send_message(m.chat.id, "⚔️ **دراجون انطلق لصيد المتفاعلين (ايموجي + دردشة)...**")
         threading.Thread(target=lambda: asyncio.run(dragon_engine(sessions, src, trg, count, m.chat.id))).start()
     except: bot.send_message(m.chat.id, "⚠️ خطأ في البيانات.")
+        async def dragon_engine(sessions, src, trg, total, uid):
+    # 1: إعداد القائمة السوداء (عشان ما نكرر حد)
+    already_tried = set()
+    global_success = 0
 
-async def dragon_engine(sessions, src, trg, total, uid):
-    found = []
-    # مرحلة الصيد العميق
+    bot.send_message(uid, f"🚀 **انطلق جيش دراجون (تكتيك سهم العميق)...**")
+
     for s in sessions:
-        if len(found) >= total: break
+        if global_success >= total: break
+        
+        # استخراج اسم الحساب للتمويه
+        acc_name = s[:10] + "..." 
+        bot.send_message(uid, f"🔄 دور الحساب الآن: `{acc_name}`")
+        
         cl = TelegramClient(StringSession(s), MY_API_ID, MY_API_HASH)
         try:
             await cl.connect()
-            # صيد المتفاعلين بايموجي والمدردشين
-            async for msg in cl.iter_messages(src, limit=5000):
-                if len(found) >= total: break
-                if msg.sender_id and isinstance(msg.sender, tl_types.User):
-                    if msg.sender.username and not msg.sender.bot and msg.sender.id not in [u.id for u in found]:
-                        found.append(msg.sender)
-            # صيد المنضمين حديثاً (لكسر حماية المخفيين)
-            async for u in cl.iter_participants(src, limit=300, filter=ChannelParticipantsRecent()):
-                if len(found) >= total: break
-                if u.username and not u.bot and u.id not in [x.id for x in found]:
-                    found.append(u)
+            
+            # صيد أهداف خاصة بهذا الحساب فقط (100 هدف جديد)
+            targets = []
+            async for msg in cl.iter_messages(src, limit=3000):
+                if len(targets) >= 100: break
+                if msg.sender_id and msg.sender_id not in already_tried:
+                    if hasattr(msg.sender, 'username') and msg.sender.username:
+                        targets.append(msg.sender)
+                        already_tried.add(msg.sender_id)
+
+            if not targets:
+                await cl.disconnect()
+                continue
+
+            # بدء الجر بهذا الحساب (نفس نظام ملف التحدي - 15 عضو كحد أقصى للحساب)
+            acc_success = 0
+            for user in targets:
+                if global_success >= total or acc_success >= 40: break
+                
+                try:
+                    # الجر المباشر باليوزر
+                    await cl(InviteToChannelRequest(trg, [user]))
+                    acc_success += 1
+                    global_success += 1
+                    # طباعة النتيجة لحظياً مثل الترمكس
+                    print(f"➕ أضاف بنجاح: {user.first_name}")
+                except:
+                    continue
+                
+                # انتظار بسيط بين كل جرّة (نفس السكربت)
+                await asyncio.sleep(10)
+
+            bot.send_message(uid, f"🏁 انتهى الحساب `{acc_name}`\n✅ أضاف: `{acc_success}` | المجموع الكلي: `{global_success}`")
             await cl.disconnect()
-        except: continue
+            
+            # استراحة بين تبديل الحسابات
+            await asyncio.sleep(5)
 
-    if not found: return bot.send_message(uid, "❌ لم يتم العثور على صيد.")
-    bot.send_message(uid, f"🔥 تم صيد `{len(found)}` وحش. جاري الجرّ بالقوة...")
+        except Exception as e:
+            print(f"خطأ في الحساب: {e}")
+            continue
 
-    success = 0
-    for i, user in enumerate(found):
-        if success >= total: break
-        cl = TelegramClient(StringSession(sessions[i % len(sessions)]), MY_API_ID, MY_API_HASH)
-        try:
-            await cl.connect()
-            await cl(InviteToChannelRequest(trg, [user]))
-            success += 1; await cl.disconnect()
-            if success % 5 == 0: bot.send_message(uid, f"📈 تم جر: `{success}/{total}`")
-            await asyncio.sleep(20) # للأمان
-        except: continue
-    bot.send_message(uid, f"🏁 **تمت المهمة!**\n✅ الإجمالي: `{success}`")
+    bot.send_message(uid, f"🏁 **اكتملت الغزوة الإمبراطورية!**\n✅ الإجمالي الذي تم جره فعلياً: `{global_success}`")
+
 
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def my_acc(m):

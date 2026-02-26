@@ -204,7 +204,19 @@ async def dragon_engine(sessions, src, trg, total, uid):
 def my_acc(m):
     accs = db_exec("SELECT phone FROM user_accounts WHERE user_id=?", (m.chat.id,), True)
     bot.send_message(m.chat.id, f"🆔 الآيدي: `{m.chat.id}`\n💰 رصيدك: `{get_balance(m.chat.id)}$`\n📱 جيشك: `{len(accs)}` حساب.")
-
 if __name__ == "__main__":
-    print("🚀 دراجون في الخدمة...")
-    bot.infinity_polling()
+    import time
+    print("🚀 نظام دراجون انطلق... لا تقلق من تنبيهات الاتصال المؤقتة")
+    
+    # دالة للتشغيل المستمر وتجاوز أخطاء الشبكة في الاستضافات
+    def run_bot():
+        while True:
+            try:
+                # timeout=10 و none_stop=True تجعل البوت يحاول الاتصال دائماً حتى لو تعثر السيرفر
+                bot.polling(none_stop=True, interval=0, timeout=10)
+            except Exception as e:
+                # إذا حدث خطأ في الاتصال، سينتظر 5 ثواني ثم يعيد التشغيل تلقائياً
+                print(f"❌ تنبيه: حدث خطأ اتصال (غالباً من السيرفر): {e}")
+                time.sleep(5)
+
+    run_bot()

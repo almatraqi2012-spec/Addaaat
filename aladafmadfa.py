@@ -13,7 +13,7 @@ MY_API_ID = 23269382
 MY_API_HASH = 'fe19c565fb4378bd5128885428ff8e26'
 ADMIN_ID = 5163375125
 OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU"
-MY_WALLET = "TXXXXXX_ضع_محفظتك_هنا_XXXXXX" # محفظتك USDT
+MY_WALLET = "TLtLuhkU2kkkR1Wz1TtrBTpoNRTNviYpsA" # محفظتك USDT
 PRICE_PER_MEMBER = 0.01 
 # =========================================================
 

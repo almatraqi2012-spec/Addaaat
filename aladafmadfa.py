@@ -48,7 +48,7 @@ def main_markup():
 # --- الأوامر الأساسية ---
 @bot.message_handler(commands=['start'])
 def start(m):
-    bot.send_message(m.chat.id, "🐲 **نظام دراجون العابر للقارات جاهز للهجوم!**", reply_markup=main_markup(), parse_mode="Markdown")
+    bot.send_message(m.chat.id, "🐲 **مرحباً بكم في بوت دراجون العابر للقارات لأضافة الاعضاء للقروبك من اي قروب تريده!**", reply_markup=main_markup(), parse_mode="Markdown")
 
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def acc_info(m):

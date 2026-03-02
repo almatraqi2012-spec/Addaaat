@@ -23,7 +23,7 @@ m_client = pymongo.MongoClient(MONGO_URL)
 db = m_client['dragon_bot_db']
 users_col = db['users']
 accs_col = db['accounts']
-# ===================================================
+# ==================================================
 
 bot = telebot.TeleBot(BOT_TOKEN)
 

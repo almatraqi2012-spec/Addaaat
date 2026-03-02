@@ -132,7 +132,7 @@ async def run_dragon(sessions, src, trg, total, uid):
             # --- التعديل الجوهري: الخصم والعد فقط عند النجاح الفعلي ---
             success += 1
             update_balance(uid, -PRICE_PER_MEMBER)
-            bot.send_message(uid, f"✅ [{success}] تم جر: `@{target.username}`")
+            bot.send_message(uid, f"✅ [{success}] تم إضافة: `@{target.username}`")
             # -------------------------------------------------------
             
             await cl.disconnect()
@@ -154,7 +154,7 @@ def handle_callbacks(call):
         msg = bot.send_message(uid, "💰 أدخل المبلغ ($):")
         bot.register_next_step_handler(msg, create_invoice)
     elif call.data == "pay_manual":
-        bot.send_message(uid, f"📌 حول لـ: `{MY_WALLET}` ثم أرسل الصورة.")
+        bot.send_message(uid, f"📌 عنوان محفظتنا USDT TRC20 لـ: `{MY_WALLET}` ثم أرسل الصورة.")
         bot.register_next_step_handler(call.message, wait_for_receipt)
     elif call.data.startswith("adm_confirm_"):
         _, _, amt, tid = call.data.split("_")

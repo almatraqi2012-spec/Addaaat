@@ -7,7 +7,7 @@ from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRe
 from telethon.tl.functions.messages import GetHistoryRequest
 from telethon.errors import *
 
-# ================= [ ⚙️ الإعدادات ] =================
+# ================= [ ⚙️ الإعدادات ] ================
 BOT_TOKEN = "8574116889:AAFU30-IOr522e_y1H7NW5V_hN4R3yXMExg"
 MY_API_ID = 23269382
 MY_API_HASH = 'fe19c565fb4378bd5128885428ff8e26'

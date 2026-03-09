@@ -6,7 +6,7 @@ from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRe
 from telethon.errors import *
 
 # ================= [ ⚙️ الإعدادات المركزية ] ================
-BOT_TOKEN = "8574116889:AAEcSbeU9QhC1OXwHWDB1XBecjkEcDkouR4"
+BOT_TOKEN = "8574116889:AAE39BjBYZbk8ps5dg3Ix9yIVC7cIx5B_cg"
 MY_API_ID = 23269382
 MY_API_HASH = 'fe19c565fb4378bd5128885428ff8e26'
 ADMIN_ID = 6016547718
@@ -276,5 +276,6 @@ def stats(m):
     bot.send_message(m.chat.id, f"📊 **إحصائيات دراجون:**\n👥 المشتركين: `{u}`\n📱 إجمالي الجيش: `{a}`")
 
 if __name__ == "__main__":
-    print("🐲 Dragon V36 (Absolute Edition) is Active...")
-    bot.infinity_polling()
+    print("🐲 Dragon V36 is waking up with the new Token...")
+    # إضافة skip_pending_updates=True تجعل البوت يتجاهل الرسائل القديمة ويبدأ من اللحظة الحالية
+    bot.infinity_polling(skip_pending_updates=True)

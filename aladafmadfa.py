@@ -264,10 +264,11 @@ def del_army_exec(call):
 # ================= [ 🚀 حل مشكلة الرسيفر والتشغيل ] ================
 
 if __name__ == "__main__":
-    print("🐲 Dragon V36 Absolute is Waking Up...")
+    print("🐲 Dragon V36 is Clearing Conflicts...")
     try:
-        # الحل النهائي لخطأ تداخل الرسائل في الرسيفر
+        # هذا السطر يخبر تليجرام: "احذف أي اتصال قديم، أنا المتحكم الآن"
         bot.delete_webhook(drop_pending_updates=True)
+        time.sleep(2) # استراحة بسيطة ليتنفس السيرفر
         bot.infinity_polling()
     except Exception as e:
-        print(f"❌ خطأ حرج: {e}")
+        print(f"❌ Error: {e}")

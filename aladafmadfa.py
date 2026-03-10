@@ -6,7 +6,7 @@ from telethon.tl.types import UserStatusRecently, UserStatusOnline, UserStatusOf
 from telethon.errors import *
 
 # ================= [ ⚙️ الإعدادات المركزية ] ================
-BOT_TOKEN = "8574116889:AAFU30-IOr522e_y1H7NW5V_hN4R3yXMExg"
+BOT_TOKEN = "8574116889:AAE39BjBYZbk8ps5dg3Ix9yIVC7cIx5B_cg"
 MY_API_ID = 23269382
 MY_API_HASH = 'fe19c565fb4378bd5128885428ff8e26'
 ADMIN_ID = 6016547718

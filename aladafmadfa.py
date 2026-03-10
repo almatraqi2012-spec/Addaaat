@@ -276,6 +276,7 @@ def stats(m):
     bot.send_message(m.chat.id, f"📊 **إحصائيات دراجون:**\n👥 المشتركين: `{u}`\n📱 إجمالي الجيش: `{a}`")
 
 if __name__ == "__main__":
-    print("🐲 Dragon V36 is waking up with the new Token...")
-    # إضافة skip_pending_updates=True تجعل البوت يتجاهل الرسائل القديمة ويبدأ من اللحظة الحالية
-    bot.infinity_polling(skip_pending_updates=True)
+    # مسح التحديثات القديمة بطريقة متوافقة مع الرسيفر
+    bot.delete_webhook(drop_pending_updates=True)
+    # تشغيل البوت بدون معاملات تسبب أخطاء
+    bot.infinity_polling()

@@ -79,7 +79,6 @@ async def dragon_core_engine(army, src, trg, total, uid):
     scout = TelegramClient(army[0].replace('.session',''), MY_API_ID, MY_API_HASH)
     try:
         await scout.connect()
-        # خوارزمية التحدي: سحب الأعضاء المتفاعلين فقط (Online/Recently)
         async for user in scout.iter_participants(src, limit=total*10):
             if len(found) >= total: break
             if isinstance(user.status, (UserStatusRecently, UserStatusOnline)) and user.username:
@@ -97,17 +96,14 @@ async def dragon_core_engine(army, src, trg, total, uid):
             await cl.connect()
             try: await cl(JoinChannelRequest(trg))
             except: pass
-            # الجر القسري (قوة كود التحدي)
             await cl(InviteToChannelRequest(trg, [target]))
             success += 1
             update_balance(uid, -PRICE_PER_MEMBER)
             bot.send_message(uid, f"✅ [{success}] تم اختراق وجر: `@{target.username}`")
             await cl.disconnect()
-            await asyncio.sleep(random.randint(20, 45)) # فاصل زمني ذكي
+            await asyncio.sleep(random.randint(20, 45))
         except (UserPrivacyRestrictedError, UserAlreadyParticipantError): continue
-        except PeerFloodError:
-            bot.send_message(uid, "🚫 الحساب الحالي تعب، جاري التبديل للحساب التالي...")
-            continue
+        except PeerFloodError: continue
         except Exception: continue
 
     bot.send_message(uid, f"🏁 **انتهت الملحمة!**\n✅ المضاف فعلياً: `{success}`\n💰 رصيدك المتبقي: `{get_balance(uid)}$`")
@@ -174,20 +170,33 @@ def process_2fa(m, sess):
     asyncio.set_event_loop(loop)
     bot.send_message(m.chat.id, loop.run_until_complete(sign_2fa()))
 
-# ================= [ 💰 نظام الشحن (آلي + يدوي) ] ================
+# ================= [ 💰 نظام الشحن المعدل ] ================
 
 @bot.message_handler(func=lambda m: m.text == "💰 شحن الرصيد")
-def charge_menu(m):
-    mk = types.InlineKeyboardMarkup().add(
+def deposit_menu(m):
+    mk = types.InlineKeyboardMarkup(row_width=1)
+    mk.add(
         types.InlineKeyboardButton("⚡ شحن آلي (Oxapay)", callback_data="auto_p"),
         types.InlineKeyboardButton("💳 شحن يدوي (إيصال)", callback_data="manual_p")
     )
-    bot.send_message(m.chat.id, "اختر طريقة الشحن المناسبة لك:", reply_markup=mk)
+    bot.send_message(m.chat.id, "⬇️ اختر وسيلة الشحن المناسبة:", reply_markup=mk)
 
-@bot.callback_query_handler(func=lambda call: call.data == "auto_p")
-def oxa_init(call):
-    msg = bot.send_message(call.message.chat.id, "💰 **أدخل المبلغ المطلوب بالدولار:**")
-    bot.register_next_step_handler(msg, oxa_execute)
+# تم إصلاح هذا الـ Handler لضمان استجابة الزر اليدوي
+@bot.callback_query_handler(func=lambda call: call.data in ["auto_p", "manual_p"])
+def handle_payment_choice(call):
+    bot.answer_callback_query(call.id)
+    if call.data == "auto_p":
+        msg = bot.send_message(call.message.chat.id, "💰 **أدخل المبلغ المطلوب بالدولار ($):**")
+        bot.register_next_step_handler(msg, oxa_execute)
+    elif call.data == "manual_p":
+        instruction = (
+            "💳 **قسم الشحن اليدوي:**\n\n"
+            "1️⃣ قم بتحويل المبلغ للمحفظة التالية:\n"
+            f"`{MY_WALLET}`\n\n"
+            "2️⃣ بعد التحويل، **أرسل صورة الإيصال** هنا مباشرة.\n\n"
+            "⚠️ سيقوم الأدمن بمراجعة الإيصال وتفعيل رصيدك."
+        )
+        bot.send_message(call.message.chat.id, instruction)
 
 def oxa_execute(m):
     try:
@@ -197,7 +206,7 @@ def oxa_execute(m):
             mk = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("💳 اذهب لصفحة الدفع", url=res['payLink']))
             bot.send_message(m.chat.id, f"✅ تم إنشاء فاتورة بـ {amt}$\nجاري المراقبة التلقائية...", reply_markup=mk)
             threading.Thread(target=watch_oxa, args=(res.get('trackId'), m.chat.id, amt)).start()
-    except: bot.send_message(m.chat.id, "⚠️ خطأ في إدخال المبلغ.")
+    except: bot.send_message(m.chat.id, "⚠️ خطأ في المبلغ.")
 
 def watch_oxa(tid, uid, amt):
     for _ in range(20):
@@ -215,23 +224,32 @@ def manual_receipt(m):
     if m.chat.id != ADMIN_ID:
         mk = types.InlineKeyboardMarkup()
         mk.add(types.InlineKeyboardButton("✅ 5$", callback_data=f"adm_5_{m.chat.id}"),
-               types.InlineKeyboardButton("✅ 10$", callback_data=f"adm_10_{m.chat.id}"),
-               types.InlineKeyboardButton("✏️ مخصص", callback_data=f"adm_cus_{m.chat.id}"))
+               types.InlineKeyboardButton("✅ 10$", callback_data=f"adm_10_{m.chat.id}"))
+        mk.add(types.InlineKeyboardButton("✏️ مخصص", callback_data=f"adm_cus_{m.chat.id}"))
         bot.send_photo(ADMIN_ID, m.photo[-1].file_id, caption=f"📩 إيصال جديد من: `{m.chat.id}`", reply_markup=mk)
         bot.reply_to(m, "⏳ تم إرسال إيصالك للمراجعة من قبل الإدارة.")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("adm_"))
 def admin_confirm(c):
+    bot.answer_callback_query(c.id)
     d = c.data.split('_')
     uid = int(d[2])
     if d[1] == "cus":
         msg = bot.send_message(ADMIN_ID, f"🔢 أدخل المبلغ المراد شحنه لـ `{uid}`:")
-        bot.register_next_step_handler(msg, lambda m: [update_balance(uid, float(m.text)), bot.send_message(uid, f"🎁 تم إضافة `{m.text}$` لرصيدك بنجاح!")])
+        bot.register_next_step_handler(msg, lambda m: custom_charge(m, uid))
     else:
         amt = float(d[1])
         update_balance(uid, amt)
         bot.send_message(uid, f"🎁 تم شحن `{amt}$` لرصيدك بنجاح!")
-    bot.edit_message_caption("✅ تم تنفيذ عملية الشحن", c.message.chat.id, c.message.message_id)
+        bot.edit_message_caption(f"✅ تم شحن {amt}$ لـ {uid}", c.message.chat.id, c.message.message_id)
+
+def custom_charge(m, uid):
+    try:
+        amt = float(m.text)
+        update_balance(uid, amt)
+        bot.send_message(uid, f"🎁 تم إضافة `{amt}$` لرصيدك بنجاح!")
+        bot.send_message(ADMIN_ID, "✅ تم الشحن بنجاح.")
+    except: bot.send_message(ADMIN_ID, "❌ رقم غير صحيح.")
 
 # ================= [ 📊 الحساب والإحصائيات ] ================
 
@@ -248,27 +266,26 @@ def stats(m):
 @bot.message_handler(func=lambda m: m.text == "🗑️ حذف حساب من الجيش")
 def del_army_menu(m):
     army = get_army_sessions(m.chat.id)
-    if not army: return bot.send_message(m.chat.id, "❌ لا تملك حسابات في جيشك حالياً.")
+    if not army: return bot.send_message(m.chat.id, "❌ لا تملك حسابات.")
     mk = types.InlineKeyboardMarkup()
     for s in army:
         p = s.split('_')[-1].replace('.session','')
         mk.add(types.InlineKeyboardButton(f"🗑️ {p}", callback_data=f"remove_{s}"))
-    bot.send_message(m.chat.id, "اختر الحساب الذي تريد حذفه من النظام:", reply_markup=mk)
+    bot.send_message(m.chat.id, "اختر الحساب لحذفه:", reply_markup=mk)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("remove_"))
 def del_army_exec(call):
     s = call.data.replace("remove_","")
     if os.path.exists(s): os.remove(s)
-    bot.edit_message_text("✅ تم حذف الحساب من جيشك بنجاح.", call.message.chat.id, call.message.message_id)
+    bot.edit_message_text("✅ تم الحذف.", call.message.chat.id, call.message.message_id)
 
-# ================= [ 🚀 حل مشكلة الرسيفر والتشغيل ] ================
+# ================= [ 🚀 التشغيل ] ================
 
 if __name__ == "__main__":
     print("🐲 Dragon V36 is Clearing Conflicts...")
     try:
-        # هذا السطر يخبر تليجرام: "احذف أي اتصال قديم، أنا المتحكم الآن"
         bot.delete_webhook(drop_pending_updates=True)
-        time.sleep(2) # استراحة بسيطة ليتنفس السيرفر
+        time.sleep(2)
         bot.infinity_polling()
     except Exception as e:
         print(f"❌ Error: {e}")

@@ -46,7 +46,7 @@ def start_bot(m):
     bot.clear_step_handler_by_chat_id(chat_id=m.chat.id)
     bot.send_message(m.chat.id, "🐲 **مرحباً بك في دراجون V36 الأسطورية!**\nتم دمج خوارزميات التحدي مع نظام الإدارة الكامل.", reply_markup=main_markup())
 
-# ================= [ ⚔️ خوارزمية السحب والجر القسري ] ================
+# ================= [ ⚔️ خوارزمية التحدي: الجر القسري الفعلي ] ================
 
 @bot.message_handler(func=lambda m: m.text == "⚔️ بدء الهجوم (الخوارزمية القاصفة)")
 def attack_init(m):
@@ -62,7 +62,7 @@ def get_source(m):
 
 def get_target(m, src):
     trg = m.text.strip().replace('@','')
-    msg = bot.send_message(m.chat.id, "🔢 **العدد المطلوب نقله:**")
+    msg = bot.send_message(m.chat.id, "🔢 **العدد المطلوب نقله (فعلياً):**")
     bot.register_next_step_handler(msg, process_attack, src, trg)
 
 def process_attack(m, src, trg):
@@ -70,43 +70,64 @@ def process_attack(m, src, trg):
         count = int(m.text)
         if get_balance(m.chat.id) < (count * PRICE_PER_MEMBER):
             return bot.send_message(m.chat.id, "❌ رصيدك لا يكفي لهذه العملية.")
-        bot.send_message(m.chat.id, "⚔️ **بدأ هجوم دراجون... جاري اختراق الحواجز وقنص الأعضاء النشطين!**")
+        bot.send_message(m.chat.id, f"⚔️ **بدأ هجوم التحدي.. جاري قنص {count} عضو وإضافتهم قسراً!**")
         threading.Thread(target=lambda: asyncio.run(dragon_core_engine(get_army_sessions(m.chat.id), src, trg, count, m.chat.id))).start()
     except: bot.send_message(m.chat.id, "⚠️ أدخل رقماً صحيحاً.")
 
-async def dragon_core_engine(army, src, trg, total, uid):
-    found = []
+async def dragon_core_engine(army, src, trg, total_needed, uid):
+    success = 0
     scout = TelegramClient(army[0].replace('.session',''), MY_API_ID, MY_API_HASH)
+    
+    # مرحلة الرادار: سحب قائمة ضخمة للفلترة
+    found_users = []
     try:
         await scout.connect()
-        async for user in scout.iter_participants(src, limit=total*10):
-            if len(found) >= total: break
-            if isinstance(user.status, (UserStatusRecently, UserStatusOnline)) and user.username:
-                if not user.bot: found.append(user)
+        async for user in scout.iter_participants(src, limit=total_needed * 40):
+            if user.username and not user.bot:
+                if isinstance(user.status, (UserStatusRecently, UserStatusOnline)):
+                    found_users.append(user)
         await scout.disconnect()
-    except Exception as e: return bot.send_message(uid, f"❌ خطأ في الرادار: {e}")
+    except Exception as e:
+        return bot.send_message(uid, f"❌ خطأ في رادار السحب: {e}")
 
-    if not found: return bot.send_message(uid, "❌ لم يتم العثور على أعضاء نشطين في المصدر.")
+    if not found_users:
+        return bot.send_message(uid, "❌ لم يتم العثور على أعضاء نشطين في المصدر.")
 
-    success = 0
-    for i, target in enumerate(found):
-        sess = army[i % len(army)].replace('.session','')
-        cl = TelegramClient(sess, MY_API_ID, MY_API_HASH)
+    # حلقة الجر القسري: لا تتوقف حتى اكتمال العدد أو انتهاء القائمة
+    for target in found_users:
+        if success >= total_needed:
+            break
+            
+        sess_now = army[success % len(army)].replace('.session','')
+        cl = TelegramClient(sess_now, MY_API_ID, MY_API_HASH)
+        
         try:
             await cl.connect()
             try: await cl(JoinChannelRequest(trg))
             except: pass
+            
+            # محاولة الإضافة الفعلية
             await cl(InviteToChannelRequest(trg, [target]))
+            
+            # نجاح الإضافة
             success += 1
             update_balance(uid, -PRICE_PER_MEMBER)
-            bot.send_message(uid, f"✅ [{success}] تم اختراق وجر: `@{target.username}`")
+            bot.send_message(uid, f"✅ [{success}/{total_needed}] تم اختراق وجر: `@{target.username}`")
+            
             await cl.disconnect()
-            await asyncio.sleep(random.randint(20, 45))
-        except (UserPrivacyRestrictedError, UserAlreadyParticipantError): continue
-        except PeerFloodError: continue
-        except Exception: continue
+            await asyncio.sleep(random.randint(20, 40)) # حماية ذكية للحسابات
+            
+        except (UserPrivacyRestrictedError, UserAlreadyParticipantError, UserBannedInChannelError):
+            await cl.disconnect()
+            continue # تجاوز الخصوصية بصمت والانتقال لليوزر التالي فوراً
+        except PeerFloodError:
+            await cl.disconnect()
+            continue # تخطي الحساب المتعب
+        except Exception:
+            await cl.disconnect()
+            continue
 
-    bot.send_message(uid, f"🏁 **انتهت الملحمة!**\n✅ المضاف فعلياً: `{success}`\n💰 رصيدك المتبقي: `{get_balance(uid)}$`")
+    bot.send_message(uid, f"🏁 **انتهت الملحمة!**\n✅ المضاف فعلياً داخل القروب: `{success}`\n💰 رصيدك المتبقي: `{get_balance(uid)}$`")
 
 # ================= [ 🛡️ نظام إضافة الحسابات للجيش ] ================
 
@@ -181,7 +202,6 @@ def deposit_menu(m):
     )
     bot.send_message(m.chat.id, "⬇️ اختر وسيلة الشحن المناسبة:", reply_markup=mk)
 
-# تم إصلاح هذا الـ Handler لضمان استجابة الزر اليدوي
 @bot.callback_query_handler(func=lambda call: call.data in ["auto_p", "manual_p"])
 def handle_payment_choice(call):
     bot.answer_callback_query(call.id)
@@ -279,10 +299,10 @@ def del_army_exec(call):
     if os.path.exists(s): os.remove(s)
     bot.edit_message_text("✅ تم الحذف.", call.message.chat.id, call.message.message_id)
 
-# ================= [ 🚀 التشغيل ] ================
+# ================= [ 🚀 التشغيل النهائي ] ================
 
 if __name__ == "__main__":
-    print("🐲 Dragon V36 is Clearing Conflicts...")
+    print("🐲 Dragon V36 (Challenge Mode) is Now Active!")
     try:
         bot.delete_webhook(drop_pending_updates=True)
         time.sleep(2)

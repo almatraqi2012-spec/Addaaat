@@ -76,58 +76,66 @@ def process_attack(m, src, trg):
 
 async def dragon_core_engine(army, src, trg, total_needed, uid):
     success = 0
-    scout = TelegramClient(army[0].replace('.session',''), MY_API_ID, MY_API_HASH)
+    attempts = 0 # عداد المحاولات الكلية
+    scout_sess = army[0].replace('.session','')
+    scout = TelegramClient(scout_sess, MY_API_ID, MY_API_HASH)
     
-    # مرحلة الرادار: سحب قائمة ضخمة للفلترة
-    found_users = []
     try:
         await scout.connect()
-        async for user in scout.iter_participants(src, limit=total_needed * 40):
-            if user.username and not user.bot:
-                if isinstance(user.status, (UserStatusRecently, UserStatusOnline)):
-                    found_users.append(user)
+        # نسحب قائمة ضخمة جداً (ألف عضو مثلاً) لنغرف منها حتى نكمل الـ 10 المطلوبة
+        targets = []
+        async for u in scout.iter_participants(src, limit=1000): 
+            if u.username and not u.bot:
+                if isinstance(u.status, (UserStatusRecently, UserStatusOnline)):
+                    targets.append(u)
         await scout.disconnect()
     except Exception as e:
-        return bot.send_message(uid, f"❌ خطأ في رادار السحب: {e}")
+        return bot.send_message(uid, f"❌ خطأ في الرادار: {e}")
 
-    if not found_users:
-        return bot.send_message(uid, "❌ لم يتم العثور على أعضاء نشطين في المصدر.")
+    if not targets:
+        return bot.send_message(uid, "❌ لم أجد صيداً ثميناً (المصدر فارغ أو محمي).")
 
-    # حلقة الجر القسري: لا تتوقف حتى اكتمال العدد أو انتهاء القائمة
-    for target in found_users:
+    bot.send_message(uid, f"⚔️ **بدأ هجوم التحدي الحقيقي.. لن أتوقف حتى أجلب {total_needed} عضواً!**")
+
+    # الخوارزمية الآن "تغرف" من القائمة حتى تشبع (تصل للعدد المطلوب)
+    for target in targets:
         if success >= total_needed:
-            break
+            break # هنا فقط تنتهي الملحمة (عند اكتمال العدد الفعلي)
             
-        sess_now = army[success % len(army)].replace('.session','')
-        cl = TelegramClient(sess_now, MY_API_ID, MY_API_HASH)
+        # تبديل الحسابات لضمان عدم الحظر (Rotation)
+        current_sess = army[attempts % len(army)].replace('.session','')
+        client = TelegramClient(current_sess, MY_API_ID, MY_API_HASH)
+        attempts += 1 # نحتسب محاولة بغض النظر عن النتيجة
         
         try:
-            await cl.connect()
-            try: await cl(JoinChannelRequest(trg))
-            except: pass
+            await client.connect()
+            # محاولة الجر القسري
+            await client(InviteToChannelRequest(trg, [target]))
             
-            # محاولة الإضافة الفعلية
-            await cl(InviteToChannelRequest(trg, [target]))
-            
-            # نجاح الإضافة
+            # إذا وصل الكود هنا، فالإضافة نجحت 100%
             success += 1
             update_balance(uid, -PRICE_PER_MEMBER)
-            bot.send_message(uid, f"✅ [{success}/{total_needed}] تم اختراق وجر: `@{target.username}`")
+            bot.send_message(uid, f"✅ [{success}/{total_needed}] تم قنص وجر: `@{target.username}`")
             
-            await cl.disconnect()
-            await asyncio.sleep(random.randint(20, 40)) # حماية ذكية للحسابات
+            await client.disconnect()
+            # فاصل زمني بسيط بين النجاحات
+            await asyncio.sleep(random.randint(15, 25))
             
         except (UserPrivacyRestrictedError, UserAlreadyParticipantError, UserBannedInChannelError):
-            await cl.disconnect()
-            continue # تجاوز الخصوصية بصمت والانتقال لليوزر التالي فوراً
+            # إذا العضو مقفل خصوصيته، ننتقل للي بعده فوراً (صمتاً) ولا نحتسب نجاح
+            await client.disconnect()
+            continue 
         except PeerFloodError:
-            await cl.disconnect()
-            continue # تخطي الحساب المتعب
+            # إذا تعب الحساب، ننتقل للحساب التالي في الجيش فوراً
+            await client.disconnect()
+            continue
         except Exception:
-            await cl.disconnect()
+            await client.disconnect()
             continue
 
-    bot.send_message(uid, f"🏁 **انتهت الملحمة!**\n✅ المضاف فعلياً داخل القروب: `{success}`\n💰 رصيدك المتبقي: `{get_balance(uid)}$`")
+    # التقرير الختامي الذي يرفع الرأس فعلاً
+    status_msg = "✅ تمت المهمة بنجاح كامل!" if success >= total_needed else "⚠️ انتهى أعضاء المصدر قبل اكتمال العدد."
+    bot.send_message(uid, f"🏁 **{status_msg}**\n\n👥 المضافون فعلياً: `{success}`\n🛡️ محاولات الاختراق الكلية: `{attempts}`\n💰 رصيدك المتبقي: `{get_balance(uid)}$`")
 
 # ================= [ 🛡️ نظام إضافة الحسابات للجيش ] ================
 

@@ -4,8 +4,8 @@ from telethon import TelegramClient, functions, types as tl_types, errors
 
 # ================= [ ⚙️ الإعدادات المركزية - تم التثبيت ] ================
 BOT_TOKEN = "8574116889:AAHSlnMQE442Y_RWH5hYq4wNcJkOw2LiArM"
-MY_API_ID = 26569209
-MY_API_HASH = '1f52802d99787e2213a8089417032724'
+MY_API_ID = 21349867
+MY_API_HASH = '7ced3ee4c80117bd5138410811b91f9f'
 ADMIN_ID = 6016547718
 
 # بياناتك المالية (ركزت عليها هنا)

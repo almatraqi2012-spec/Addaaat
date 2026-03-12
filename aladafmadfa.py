@@ -4,7 +4,7 @@ from telethon import TelegramClient, functions, types as tl_types, errors
 from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
 from telethon.tl.types import UserStatusRecently, UserStatusOnline
 
-# ================= [ ⚙️ الإعدادات المركزية - بياناتك الرسمية ] ================
+# ================= [ ⚙️ الإعدادات المركزية - بياناتك الرسمية ] ===============
 BOT_TOKEN = "8574116889:AAHSlnMQE442Y_RWH5hYq4wNcJkOw2LiArM"
 MY_API_ID = 26569209
 MY_API_HASH = '1f52802d99787e2213a8089417032724'

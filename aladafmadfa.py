@@ -5,8 +5,8 @@ from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRe
 
 # ================= [ ⚙️ الإعدادات المركزية ] ================
 BOT_TOKEN = "8574116889:AAHSlnMQE442Y_RWH5hYq4wNcJkOw2LiArM"
-MY_API_ID = 26569209
-MY_API_HASH = '1f52802d99787e2213a8089417032724'
+MY_API_ID = 21349867
+MY_API_HASH = '7ced3ee4c80117bd5138410811b91f9f'
 ADMIN_ID = 6016547718
 
 OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU" 
@@ -60,7 +60,7 @@ async def dragon_core_engine(army, src_user, trg_user, total, uid):
         await client.disconnect()
         if not targets: return bot.send_message(uid, "❌ لم نجد أعضاء نشطين لسحبهم.")
         
-        bot.send_message(uid, f"🔥 **تم قنص {len(targets)} هدف. جاري الجر القسري...**")
+        bot.send_message(uid, f"🔥 **تم قنص {len(targets)} هدف. جاري الأضافه ...**")
 
         for i, t in enumerate(targets):
             if success >= total: break
@@ -89,7 +89,7 @@ def start_cmd(m):
     mk.add("⚔️ بدء الهجوم (نمط دراجون الشامل)", "➕ إضافة حساب للجيش")
     mk.add("💰 شحن الرصيد", "👤 حسابي")
     mk.add("📊 إحصائيات النظام", "🗑️ حذف حساب من الجيش")
-    bot.send_message(m.chat.id, "🐲 **إمبراطورية دراجون V55 - النسخة النهائية**\nجاهز لسحق المنافسين واكتساح المصادر.", reply_markup=mk)
+    bot.send_message(m.chat.id, "🐲 **إمبراطورية دراجون V55 - النسخة النهائية**\nجاهز للأضافه الاعضاه المصادر.", reply_markup=mk)
 
 # --- نظام إضافة الحسابات الفولاذي ---
 @bot.message_handler(func=lambda m: m.text == "➕ إضافة حساب للجيش")

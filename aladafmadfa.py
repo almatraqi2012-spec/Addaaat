@@ -3,7 +3,7 @@ from telebot import types
 from telethon import TelegramClient, functions, types as tl_types, errors
 from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
 
-# ================= [ ⚙️ الإعدادات المركزية ] ================
+# ================= [ ⚙️ الإعدادات المركزية - تأكد منها ] ================
 BOT_TOKEN = "8574116889:AAHSlnMQE442Y_RWH5hYq4wNcJkOw2LiArM"
 MY_API_ID = 21349867
 MY_API_HASH = '7ced3ee4c80117bd5138410811b91f9f'
@@ -16,30 +16,32 @@ PRICE_PER_MEMBER = 0.04
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 
 # ================= [ 💾 إدارة البيانات والذاكرة الفولاذية ] ================
+def get_db_connection():
+    # حل مشكلة القفل نهائياً بزيادة وقت الانتظار وتخطي فحص الخيوط
+    conn = sqlite3.connect('dragon_final_v57.db', timeout=30, check_same_thread=False)
+    return conn
+
 def init_db():
-    conn = sqlite3.connect('dragon_v55.db')
+    conn = get_db_connection()
     conn.execute('CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, balance REAL DEFAULT 0.0)')
     conn.commit(); conn.close()
 
 def get_balance(uid):
-    conn = sqlite3.connect('dragon_v55.db')
+    conn = get_db_connection()
     res = conn.execute("SELECT balance FROM users WHERE uid=?", (uid,)).fetchone()
     conn.close(); return res[0] if res else 0.0
 
 def update_balance(uid, amount):
     curr = get_balance(uid)
-    conn = sqlite3.connect('dragon_v55.db')
+    conn = get_db_connection()
     conn.execute("INSERT OR REPLACE INTO users VALUES (?, ?)", (uid, round(curr + amount, 2)))
     conn.commit(); conn.close()
 
-def get_army(uid):
-    return [f for f in os.listdir('.') if f.startswith(f"sess_{uid}_") and f.endswith('.session')]
-
-# ================= [ ⚔️ محرك الاكتساح الهجين V55 ] ================
+# ================= [ ⚔️ محرك الاكتساح V57 ] ================
 
 async def dragon_core_engine(army, src_user, trg_user, total, uid):
     success = 0
-    bot.send_message(uid, "📡 **بدأ رادار دراجون باختراق المصدر...**")
+    bot.send_message(uid, "📡 **بدأ رادار دراجون بالاختراق... جاري جلب الأهداف.**")
     
     scout_sess = army[0].replace('.session','')
     client = TelegramClient(scout_sess, MY_API_ID, MY_API_HASH)
@@ -50,17 +52,15 @@ async def dragon_core_engine(army, src_user, trg_user, total, uid):
         target = await client.get_entity(trg_user)
         
         targets = []
-        # سحب المتفاعلين في آخر 2000 رسالة
-        async for m in client.iter_messages(source, limit=2000):
+        async for u in client.iter_participants(source, limit=total*2):
             if len(targets) >= total: break
-            if m.sender_id and isinstance(await m.get_sender(), tl_types.User):
-                u = await m.get_sender()
-                if not u.bot: targets.append(u)
+            if not u.bot and isinstance(u.status, (tl_types.UserStatusRecently, tl_types.UserStatusOnline)):
+                targets.append(u)
         
         await client.disconnect()
-        if not targets: return bot.send_message(uid, "❌ لم نجد أعضاء نشطين لسحبهم.")
-        
-        bot.send_message(uid, f"🔥 **تم قنص {len(targets)} هدف. جاري الأضافه ...**")
+        if not targets: return bot.send_message(uid, "❌ المصدر فارغ أو محمي.")
+
+        bot.send_message(uid, f"🔥 **تم قنص {len(targets)} هدف. جاري الجر القسري...**")
 
         for i, t in enumerate(targets):
             if success >= total: break
@@ -69,48 +69,47 @@ async def dragon_core_engine(army, src_user, trg_user, total, uid):
             try:
                 await cl.connect()
                 await cl(InviteToChannelRequest(target, [t]))
-                success += 1
                 update_balance(uid, -PRICE_PER_MEMBER)
+                success += 1
                 bot.send_message(uid, f"✅ [{success}/{total}] تم جر: `@{t.username or t.id}`")
                 await cl.disconnect()
-                await asyncio.sleep(random.randint(20, 40))
+                await asyncio.sleep(random.randint(25, 45))
             except: 
                 await cl.disconnect(); continue
 
-        bot.send_message(uid, f"🏁 **تمت المهمة!**\n✅ الأعضاء الجدد: `{success}`\n💰 الرصيد المتبقي: `{get_balance(uid)}$` ")
+        bot.send_message(uid, f"🏁 **تمت المهمة بنجاح!**\n✅ الأعضاء المضافين: `{success}`")
     except Exception as e:
         bot.send_message(uid, f"❌ فشل المحرك: {e}")
 
-# ================= [ 📱 الواجهة البرمجية الكاملة ] ================
+# ================= [ 📱 الواجهة والأوامر الكاملة ] ================
 
 @bot.message_handler(commands=['start'])
 def start_cmd(m):
     mk = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     mk.add("⚔️ بدء الهجوم (نمط دراجون الشامل)", "➕ إضافة حساب للجيش")
-    mk.add("💰 شحن الرصيد", "👤 حسابي")
-    mk.add("📊 إحصائيات النظام", "🗑️ حذف حساب من الجيش")
-    bot.send_message(m.chat.id, "🐲 **إمبراطورية دراجون V55 - النسخة النهائية**\nجاهز للأضافه الاعضاه المصادر.", reply_markup=mk)
+    mk.add("💰 شحن الرصيد", "👤 حسابي", "📊 إحصائيات النظام", "🗑️ حذف حساب من الجيش")
+    bot.send_message(m.chat.id, "🐲 **إمبراطورية دراجون V57 - النسخة المتكاملة**\nجاهز لسحق المنافسين واكتساح المصادر.", reply_markup=mk)
 
-# --- نظام إضافة الحسابات الفولاذي ---
+# --- نظام الإضافة ---
 @bot.message_handler(func=lambda m: m.text == "➕ إضافة حساب للجيش")
 def add_phone(m):
-    msg = bot.send_message(m.chat.id, "📱 **أرسل الرقم مع المفتاح الدولي (مثال: 9665...):**")
+    msg = bot.send_message(m.chat.id, "📱 **أرسل الرقم مع المفتاح الدولي:**")
     bot.register_next_step_handler(msg, save_phone)
 
 def save_phone(m):
     ph = m.text.strip().replace('+', '')
     sess = f"sess_{m.chat.id}_{ph}"
     cl = TelegramClient(sess, MY_API_ID, MY_API_HASH)
-    async def get_code():
+    async def get_c():
         await cl.connect()
         try: return (await cl.send_code_request(ph)).phone_code_hash, "OK"
         except Exception as e: return str(e), "ERR"
         finally: await cl.disconnect()
-    h, status = asyncio.run(get_code())
+    h, status = asyncio.run(get_c())
     if status == "OK":
-        msg = bot.send_message(m.chat.id, "📩 **أرسل كود التحقق (OTP):**")
+        msg = bot.send_message(m.chat.id, "📩 **أرسل الكود (OTP):**")
         bot.register_next_step_handler(msg, login_otp, ph, h, sess)
-    else: bot.send_message(m.chat.id, f"❌ خطأ تلجرام: {h}")
+    else: bot.send_message(m.chat.id, f"❌ خطأ: {h}")
 
 def login_otp(m, ph, h, sess):
     cl = TelegramClient(sess, MY_API_ID, MY_API_HASH)
@@ -123,51 +122,21 @@ def login_otp(m, ph, h, sess):
         except Exception as e: return str(e), False
         finally: await cl.disconnect()
     res, n2fa = asyncio.run(sign())
-    if res == "OK": 
-        bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح في الجيش!**")
+    if res == "OK": bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
     elif n2fa:
-        msg = bot.send_message(m.chat.id, "🔐 **الحساب محمي بـ 2FA. أرسل كلمة السر:**")
+        msg = bot.send_message(m.chat.id, "🔐 **أرسل كلمة سر التحقق (2FA):**")
         bot.register_next_step_handler(msg, login_2fa, sess)
-    else: bot.send_message(m.chat.id, f"❌ فشل الدخول: {res}")
+    else: bot.send_message(m.chat.id, f"❌ فشل: {res}")
 
 def login_2fa(m, sess):
     cl = TelegramClient(sess, MY_API_ID, MY_API_HASH)
     async def sign_2fa():
         await cl.connect()
-        try:
-            await cl.sign_in(password=m.text)
-            return "OK"
+        try: await cl.sign_in(password=m.text); return "OK"
         except Exception as e: return str(e)
         finally: await cl.disconnect()
-    res = asyncio.run(sign_2fa())
-    if res == "OK": 
-        bot.send_message(m.chat.id, "✅ **تم فك الحماية وربط الحساب بنجاح!**")
-    else: bot.send_message(m.chat.id, f"❌ كلمة السر خاطئة: {res}")
-
-# --- نظام الهجوم المطور ---
-@bot.message_handler(func=lambda m: m.text == "⚔️ بدء الهجوم (نمط دراجون الشامل)")
-def attack_1(m):
-    army = get_army(m.chat.id)
-    if not army: return bot.send_message(m.chat.id, "❌ جيشك فارغ! أضف حسابات أولاً.")
-    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر (بدون @):**")
-    bot.register_next_step_handler(msg, attack_2, army)
-
-def attack_2(m, army):
-    src = m.text.strip().replace('@','')
-    msg = bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك (بدون @):**")
-    bot.register_next_step_handler(msg, attack_3, army, src)
-
-def attack_3(m, army, src):
-    trg = m.text.strip().replace('@','')
-    msg = bot.send_message(m.chat.id, "🔢 **العدد المطلوب:**")
-    bot.register_next_step_handler(msg, attack_final, army, src, trg)
-
-def attack_final(m, army, src, trg):
-    try:
-        n = int(m.text)
-        if get_balance(m.chat.id) < (n * PRICE_PER_MEMBER): return bot.send_message(m.chat.id, "❌ رصيدك لا يكفي.")
-        threading.Thread(target=lambda: asyncio.run(dragon_core_engine(army, src, trg, n, m.chat.id))).start()
-    except: bot.send_message(m.chat.id, "⚠️ أدخل رقماً صحيحاً.")
+    if asyncio.run(sign_2fa()) == "OK": bot.send_message(m.chat.id, "✅ **تم فك الحماية بنجاح!**")
+    else: bot.send_message(m.chat.id, "❌ كلمة السر خاطئة.")
 
 # --- نظام الشحن ---
 @bot.message_handler(func=lambda m: m.text == "💰 شحن الرصيد")
@@ -175,11 +144,11 @@ def pay_menu(m):
     mk = types.InlineKeyboardMarkup()
     mk.add(types.InlineKeyboardButton("⚡ شحن آلي (Oxapay)", callback_data="auto"),
            types.InlineKeyboardButton("💳 شحن يدوي", callback_data="manual"))
-    bot.send_message(m.chat.id, "اختر وسيلة الشحن المناسبة:", reply_markup=mk)
+    bot.send_message(m.chat.id, "اختر وسيلة الشحن:", reply_markup=mk)
 
 @bot.callback_query_handler(func=lambda c: c.data == "auto")
 def auto_oxa(c):
-    msg = bot.send_message(c.message.chat.id, "💵 **أدخل المبلغ المطلوب ($):**")
+    msg = bot.send_message(c.message.chat.id, "💵 **أدخل المبلغ ($):**")
     bot.register_next_step_handler(msg, oxa_exec)
 
 def oxa_exec(m):
@@ -188,7 +157,7 @@ def oxa_exec(m):
                             json={'merchant': OXAPAY_KEY, 'amount': m.text, 'currency': 'USD', 'description': str(m.chat.id)}).json()
         if res.get('payLink'):
             mk = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("💳 رابط الدفع", url=res['payLink']))
-            bot.send_message(m.chat.id, f"✅ تم إنشاء فاتورة بقيمة {m.text}$", reply_markup=mk)
+            bot.send_message(m.chat.id, f"✅ فاتورة بقيمة {m.text}$", reply_markup=mk)
         else: bot.send_message(m.chat.id, "❌ خطأ في بوابة الدفع.")
     except: bot.send_message(m.chat.id, "⚠️ مبلغ غير صحيح.")
 
@@ -200,7 +169,7 @@ def manual_p(c):
 def handle_receipt(m):
     if m.chat.id != ADMIN_ID:
         mk = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("✅ شحن 10$", callback_data=f"adm_10_{m.chat.id}"))
-        bot.send_photo(ADMIN_ID, m.photo[-1].file_id, caption=f"📩 إيصال من `{m.chat.id}`", reply_markup=mk)
+        bot.send_photo(ADMIN_ID, m.photo[-1].file_id, caption=f"إيصال من `{m.chat.id}`", reply_markup=mk)
         bot.reply_to(m, "⏳ جارِ التأكد من الإيصال...")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("adm_"))
@@ -208,20 +177,32 @@ def admin_confirm(c):
     d = c.data.split('_'); update_balance(int(d[2]), float(d[1]))
     bot.send_message(int(d[2]), f"🎉 تم تفعيل {d[1]}$ لرصيدك!"); bot.edit_message_caption("✅ تم التأكيد", c.message.chat.id, c.message.message_id)
 
-# --- إحصائيات وحساب ---
+# --- إدارة الهجوم ---
+@bot.message_handler(func=lambda m: m.text == "⚔️ بدء الهجوم (نمط دراجون الشامل)")
+def attack_1(m):
+    army = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')]
+    if not army: return bot.send_message(m.chat.id, "❌ جيشك فارغ!")
+    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر:**")
+    bot.register_next_step_handler(msg, attack_2, army)
+
+def attack_2(m, army):
+    src = m.text.strip().replace('@','')
+    msg = bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك:**")
+    bot.register_next_step_handler(msg, attack_3, army, src)
+
+def attack_3(m, army, src):
+    trg = m.text.strip().replace('@','')
+    msg = bot.send_message(m.chat.id, "🔢 **العدد المطلوب:**")
+    bot.register_next_step_handler(msg, lambda n: threading.Thread(target=lambda: asyncio.run(dragon_core_engine(army, src, trg, int(n.text), m.chat.id))).start())
+
+# --- ميزات إضافية ---
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def my_acc(m):
-    army = get_army(m.chat.id)
-    bot.send_message(m.chat.id, f"👤 **حسابك:**\n💰 الرصيد: `{get_balance(m.chat.id)}$`\n📱 الجيش: `{len(army)}` حساب.")
-
-@bot.message_handler(func=lambda m: m.text == "📊 إحصائيات النظام")
-def sys_stats(m):
-    total_sess = len([f for f in os.listdir('.') if f.endswith('.session')])
-    bot.send_message(m.chat.id, f"📊 **إحصائيات الإمبراطورية:**\n📱 إجمالي الحسابات المربوطة: `{total_sess}`")
+    bot.send_message(m.chat.id, f"👤 **حسابك:**\n💰 الرصيد: `{get_balance(m.chat.id)}$`")
 
 @bot.message_handler(func=lambda m: m.text == "🗑️ حذف حساب من الجيش")
 def del_menu(m):
-    army = get_army(m.chat.id)
+    army = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_")]
     if not army: return bot.send_message(m.chat.id, "❌ لا يوجد حسابات.")
     mk = types.InlineKeyboardMarkup()
     for s in army: mk.add(types.InlineKeyboardButton(f"❌ {s.split('_')[-1]}", callback_data=f"del_{s}"))
@@ -230,9 +211,8 @@ def del_menu(m):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("del_"))
 def del_exec(c):
     f = c.data.replace("del_", ""); os.remove(f) if os.path.exists(f) else None
-    bot.edit_message_text("✅ تم حذف الحساب نهائياً.", c.message.chat.id, c.message.message_id)
+    bot.edit_message_text("✅ تم الحذف.", c.message.chat.id, c.message.message_id)
 
 if __name__ == '__main__':
     init_db()
-    print("🐲 دراجون V55 جاهز لسحق التحدي...")
     bot.infinity_polling()

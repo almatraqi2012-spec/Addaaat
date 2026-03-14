@@ -83,7 +83,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
 @bot.message_handler(commands=['start'])
 def start_main(m):
     mk = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    mk.add("⚔️ بدء الاضافه", "➕ إضافة حساب للجيش")
+    mk.add("⚔️ بدء الأضافه", "➕ إضافة حساب للجيش")
     mk.add("💰 شحن الرصيد", "👤 حسابي")
     mk.add("📊 الإحصائيات", "🗑️ حذف حساب")
     if m.chat.id == ADMIN_ID: mk.add("💎 لوحة المالك")
@@ -124,8 +124,7 @@ def man_call(c):
 @bot.message_handler(content_types=['photo'])
 def handle_receipt(m):
     if user_states.get(m.chat.id) == "waiting_receipt":
-        # التعديل هنا فقط: إضافة زر الـ 5 دولار
-        mk = types.InlineKeyboardMarkup(row_width=3) # جعلنا العرض 3 لتظهر الأزرار بجانب بعض
+        mk = types.InlineKeyboardMarkup(row_width=3)
         mk.add(
             types.InlineKeyboardButton("✅ 5$", callback_data=f"set_5_{m.chat.id}"),
             types.InlineKeyboardButton("✅ 10$", callback_data=f"set_10_{m.chat.id}"),
@@ -136,13 +135,35 @@ def handle_receipt(m):
         bot.reply_to(m, "⏳ تم إرسال الإيصال للمدير. سيتم التفعيل فوراً.")
         user_states[m.chat.id] = None
 
-# --- لوحة المالك لتفعيل الرصيد بضغطة زر ---
 @bot.callback_query_handler(func=lambda c: c.data.startswith("set_"))
 def admin_confirm(c):
     _, amt, uid = c.data.split('_')
     update_balance(int(uid), float(amt))
     bot.send_message(int(uid), f"🎉 **مبروك! تم شحن {amt}$ في حسابك.**")
     bot.edit_message_caption(f"✅ تم تفعيل {amt}$ للحساب {uid}", c.message.chat.id, c.message.message_id)
+
+# --- تفعيل أزرار الإحصائيات والحذف ---
+@bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")
+def stats_all(m):
+    a_count = len([f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')])
+    bot.send_message(m.chat.id, f"📊 **إحصائياتك:**\n📱 جيش الحسابات: `{a_count}`\n✅ الذاكرة (تم اصطيادهم): `{len(get_memory())}`\n💰 رصيدك: `{get_balance(m.chat.id)}$` ")
+
+@bot.message_handler(func=lambda m: m.text == "🗑️ حذف حساب")
+def delete_acc_menu(m):
+    army = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')]
+    if not army: return bot.send_message(m.chat.id, "❌ لا يوجد حسابات.")
+    mk = types.InlineKeyboardMarkup()
+    for s in army:
+        phone = s.split('_')[-1].replace('.session', '')
+        mk.add(types.InlineKeyboardButton(f"❌ حذف {phone}", callback_data=f"rm_{s}"))
+    bot.send_message(m.chat.id, "اختر حساباً لحذفه:", reply_markup=mk)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("rm_"))
+def finalize_delete(c):
+    fname = c.data.replace("rm_", "")
+    if os.path.exists(fname):
+        os.remove(fname)
+        bot.edit_message_text(f"✅ تم حذف الحساب بنجاح.", c.message.chat.id, c.message.message_id)
 
 # --- تنفيذ الهجوم ---
 @bot.message_handler(func=lambda m: m.text == "⚔️ بدء الأضافه")
@@ -154,7 +175,7 @@ def start_attack_cmd(m):
     msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر:**")
     bot.register_next_step_handler(msg, lambda s: bot.register_next_step_handler(bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك:**"), lambda t: bot.register_next_step_handler(bot.send_message(m.chat.id, "🔢 **العدد المطلوب:**"), lambda n: threading.Thread(target=lambda: asyncio.run(run_sahm_v73(army, s.text, t.text, int(n.text), m.chat.id))).start())))
 
-# --- حسابي وإحصائيات ---
+# --- حسابي وإضافة حساب ---
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def info(m):
     a = len([f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_")])
@@ -195,5 +216,4 @@ def step_2(m, ph, h, sess):
         bot.register_next_step_handler(msg, lambda p: bot.send_message(m.chat.id, "✅ تم!") if asyncio.run(cl.connect() or cl.sign_in(password=p.text) or cl.disconnect()) else None)
 
 if __name__ == '__main__':
-    print("🚀 دراجون سهم V73 يعمل بكامل طاقته!")
     bot.infinity_polling()

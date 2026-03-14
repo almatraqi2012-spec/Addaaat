@@ -42,7 +42,7 @@ def get_memory():
 
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
-    bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري اكتساح المصدر.**")
+    bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري اختراق المصدر.**")
     
     for session_file in army:
         if success >= total or get_balance(uid) < PRICE_PER_MEMBER: break
@@ -83,11 +83,11 @@ async def run_sahm_v73(army, src, trg, total, uid):
 @bot.message_handler(commands=['start'])
 def start_main(m):
     mk = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    mk.add("⚔️ بدء الاكتساح", "➕ إضافة حساب للجيش")
+    mk.add("⚔️ بدء الاضافه", "➕ إضافة حساب للجيش")
     mk.add("💰 شحن الرصيد", "👤 حسابي")
     mk.add("📊 الإحصائيات", "🗑️ حذف حساب")
     if m.chat.id == ADMIN_ID: mk.add("💎 لوحة المالك")
-    bot.send_message(m.chat.id, "🐲 **دراجون سهم V73 - النسخة المتكاملة**\nكل الميزات (شحن، محفظة، رادار) مدمجة وشغالة.", reply_markup=mk)
+    bot.send_message(m.chat.id, "🐲 **مرحباً بكم في بوت دراجون**\nيمكنك إضافة اعضاء لقروبك من اي قروب تريده.", reply_markup=mk)
 
 # --- نظام الشحن المزدوج (آلي + يدوي) ---
 @bot.message_handler(func=lambda m: m.text == "💰 شحن الرصيد")
@@ -124,9 +124,12 @@ def man_call(c):
 @bot.message_handler(content_types=['photo'])
 def handle_receipt(m):
     if user_states.get(m.chat.id) == "waiting_receipt":
-        mk = types.InlineKeyboardMarkup().add(
-            types.InlineKeyboardButton("✅ تفعيل 10$", callback_data=f"set_10_{m.chat.id}"),
-            types.InlineKeyboardButton("✅ تفعيل 50$", callback_data=f"set_50_{m.chat.id}")
+        # التعديل هنا فقط: إضافة زر الـ 5 دولار
+        mk = types.InlineKeyboardMarkup(row_width=3) # جعلنا العرض 3 لتظهر الأزرار بجانب بعض
+        mk.add(
+            types.InlineKeyboardButton("✅ 5$", callback_data=f"set_5_{m.chat.id}"),
+            types.InlineKeyboardButton("✅ 10$", callback_data=f"set_10_{m.chat.id}"),
+            types.InlineKeyboardButton("✅ 50$", callback_data=f"set_50_{m.chat.id}")
         )
         bot.send_photo(ADMIN_ID, m.photo[-1].file_id, 
                        caption=f"📩 **إيصال جديد من:** `{m.chat.id}`\nاسم المستخدم: @{m.from_user.username}", reply_markup=mk)
@@ -142,7 +145,7 @@ def admin_confirm(c):
     bot.edit_message_caption(f"✅ تم تفعيل {amt}$ للحساب {uid}", c.message.chat.id, c.message.message_id)
 
 # --- تنفيذ الهجوم ---
-@bot.message_handler(func=lambda m: m.text == "⚔️ بدء الاكتساح")
+@bot.message_handler(func=lambda m: m.text == "⚔️ بدء الأضافه")
 def start_attack_cmd(m):
     if get_balance(m.chat.id) < PRICE_PER_MEMBER:
         return bot.send_message(m.chat.id, "❌ رصيدك 0$! اشحن أولاً.")

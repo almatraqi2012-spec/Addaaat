@@ -1,6 +1,5 @@
 pyTelegramBotAPI
 pymongo
 dnspython
+telethon
 requests
-pandas
-flask

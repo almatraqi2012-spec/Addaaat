@@ -5,3 +5,4 @@ telethon
 requests
 flask
 pandas
+nest_asyncio

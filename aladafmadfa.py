@@ -60,7 +60,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
                         if u.id not in [x.id for x in targets]: targets.append(u)
             count = 0
             for t in targets:
-                if success >= total or count >= 15 or get_balance(uid) < PRICE_PER_MEMBER: break
+                if success >= total or count >= 40 or get_balance(uid) < PRICE_PER_MEMBER: break
                 try:
                     await client(InviteToChannelRequest(trg, [t]))
                     save_user_memory(t.id)

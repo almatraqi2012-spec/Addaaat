@@ -4,7 +4,7 @@ from telethon import TelegramClient, functions, types as tl_types, errors
 from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
 
 # ================= [ ⚙️ الإعدادات المركزية ] ================
-BOT_TOKEN = "8461494562:AAEQGbNessZGroYrttf5_gDRsVfNJ2j_6MI"
+BOT_TOKEN = "8574116889:AAHSlnMQE442Y_RWH5hYq4wNcJkOw2LiArM"
 MY_API_ID = 21349867
 MY_API_HASH = '7ced3ee4c80117bd5138410811b91f9f'
 ADMIN_ID = 6016547718

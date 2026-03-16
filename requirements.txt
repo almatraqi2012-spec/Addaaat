@@ -1,3 +1,6 @@
 pyTelegramBotAPI
-telethon
+pymongo
+dnspython
 requests
+pandas
+flask

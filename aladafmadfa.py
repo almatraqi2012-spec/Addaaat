@@ -77,29 +77,39 @@ async def run_sahm_v73(army, src, trg, total, uid):
 @bot.message_handler(commands=['start'])
 def start_main(m):
     uid = m.chat.id
-    # 1. التحقق هل المستخدم موجود مسبقاً؟
-    conn = get_db(); res = conn.execute("SELECT uid FROM users WHERE uid=?", (uid,)).fetchone(); conn.close()
+    conn = get_db()
+    # التحقق من وجود المستخدم
+    res = conn.execute("SELECT uid FROM users WHERE uid=?", (uid,)).fetchone()
+    conn.close()
 
-    # 2. إذا كان مستخدم جديد تماماً
-    if not res:
+    # إذا كان المستخدم جديداً تماماً (أول مرة يلمس البوت)
+    if res is None:
         params = m.text.split()
-        if len(params) > 1: # إذا دخل عبر رابط دعوة
+        if len(params) > 1: # إذا جاء عبر رابط t.me/bot?start=6016547718
             referrer_id = params[1]
-            if referrer_id.isdigit() and int(referrer_id) != uid:
-                # إعطاء الهدية للداعي
-                update_balance(int(referrer_id), REFERRAL_GIFT)
-                bot.send_message(int(referrer_id), f"🎊 **رصيد هدية!** دخل صديق برابطك، حصلت على `{REFERRAL_GIFT}$`.")
+            if referrer_id.isdigit():
+                ref_id = int(referrer_id)
+                if ref_id != uid: # منع دعوة النفس
+                    # منح الهدية للداعي (أنت)
+                    update_balance(ref_id, REFERRAL_GIFT)
+                    try:
+                        bot.send_message(ref_id, f"🎊 **بشارة!** دخل صديق جديد برابطك، حصلت على `{REFERRAL_GIFT}$` رصيد هدية.")
+                    except: pass
+        
+        # الآن فقط نقوم بإنشاء حساب للمستخدم الجديد برصيد 0
+        conn = get_db()
+        conn.execute("INSERT INTO users (uid, balance) VALUES (?, ?)", (uid, 0.0))
+        conn.commit()
+        conn.close()
 
-        # تسجيل المستخدم الجديد في القاعدة برصيد 0
-        update_balance(uid, 0)
-
-    # 3. القائمة الرئيسية
+    # القائمة الرئيسية تظهر للجميع (جديد أو قديم)
     mk = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     mk.add("⚔️ بدء الأضافه", "➕ إضافة حساب للجيش")
     mk.add("💰 شحن الرصيد", "👤 حسابي")
     mk.add("📊 الإحصائيات", "🗑️ حذف حساب", "🎁 كسب رصيد مجاني")
     if uid == ADMIN_ID: mk.add("💎 لوحة المالك")
-    bot.send_message(uid, "🐲 **مرحباً بكم في بوت دراجون المطور الاسعار .. 1000 عضو=7دولار فقط! **\nاسحب الأعضاء من أي مجموعة وضعهم في مجموعتك بضغطة زر -   100%.", reply_markup=mk)
+    
+    bot.send_message(uid, "🐲 **مرحباً بك في دراجون المطور!**\nأسرع نظام لسحب وإضافة الأعضاء في تليجرام.", reply_markup=mk)
 
 @bot.message_handler(func=lambda m: m.text == "🎁 كسب رصيد مجاني")
 def referral_menu(m):

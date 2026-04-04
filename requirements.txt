@@ -1,8 +1,4 @@
 pyTelegramBotAPI
-pymongo
-dnspython
 telethon
 requests
-flask
-pandas
-nest_asyncio
+urllib3==1.26.15

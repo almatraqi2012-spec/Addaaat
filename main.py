@@ -9,7 +9,7 @@ import http.server
 import socketserver
 from telethon import TelegramClient, functions, types as tl_types, errors
 from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
-
+import pymongo
 # ================= [ ⚙️ الإعدادات المركزية ] ================
 BOT_TOKEN = "8574116889:AAHSlnMQE442Y_RWH5hYq4wNcJkOw2LiArM"
 MY_API_ID = 21349867
@@ -24,39 +24,48 @@ bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 user_states = {}
 
 # ================= [ 💾 إدارة البيانات الاحترافية ] ================
-def get_db():
-    conn = sqlite3.connect('dragon_final_v73.db', timeout=30)
-    # جدول المستخدمين والأرصدة
-    conn.execute('CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, balance REAL DEFAULT 0.0)')
-    # جدول الحسابات المدخلة لضمان عدم ضياع الجيش
-    conn.execute('CREATE TABLE IF NOT EXISTS accounts (user_id INTEGER, session_name TEXT, phone TEXT)')
-    return conn
+
+# --- [ 🌐 الربط السحابي بـ MongoDB Atlas ] ---
+# الرابط الخاص بك الذي حفظناه (Cluster0)
+MONGO_URI = "mongodb+srv://alkreem12:Abn-alkreem12@cluster0.p8iub.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client_db = pymongo.MongoClient(MONGO_URI)
+db = client_db['dragon_v73_database']
+users_col = db['users']       # بديل جدول users
+accounts_col = db['accounts'] # بديل جدول accounts
+memory_col = db['memory']     # بديل ملف memory.txt (ذاكرة سهم)
 
 def get_balance(uid):
-    conn = get_db()
-    res = conn.execute("SELECT balance FROM users WHERE uid=?", (uid,)).fetchone()
-    conn.close()
-    return res[0] if res else 0.0
+    user = users_col.find_one({"uid": uid})
+    return round(user['balance'], 3) if user else 0.0
 
 def update_balance(uid, amt):
-    conn = get_db()
-    curr = get_balance(uid)
-    conn.execute("INSERT OR REPLACE INTO users (uid, balance) VALUES (?, ?)", (uid, round(curr + amt, 2)))
-    conn.commit()
-    conn.close()
+    # تحديث الرصيد (زيادة أو نقصان) بضمان سحابي
+    users_col.update_one(
+        {"uid": uid},
+        {"$inc": {"balance": round(amt, 3)}},
+        upsert=True
+    )
 
 def save_account_db(user_id, session_name, phone):
-    conn = get_db()
-    conn.execute("INSERT INTO accounts VALUES (?, ?, ?)", (user_id, session_name, phone))
-    conn.commit()
-    conn.close()
+    # أرشفة الحسابات المربوطة لضمان عدم ضياع الجيش
+    accounts_col.update_one(
+        {"session_name": session_name},
+        {"$set": {"user_id": user_id, "phone": phone, "date": time.time()}},
+        upsert=True
+    )
 
 def save_user_memory(user_id):
-    with open('memory.txt', 'a') as f: f.write(str(user_id) + '\n')
+    # حفظ الأعضاء المضافين لمنع التكرار (بدل memory.txt)
+    memory_col.update_one(
+        {"target_id": str(user_id)},
+        {"$set": {"added": True}},
+        upsert=True
+    )
 
 def get_memory():
-    if not os.path.exists('memory.txt'): return []
-    with open('memory.txt', 'r') as f: return f.read().splitlines()
+    # استرجاع قائمة المضافين من السحاب
+    return [doc['target_id'] for doc in memory_col.find()]
+
 
 # ================= [ ⚔️ محرك سهم V73 - القفز الذكي ] ================
 async def run_sahm_v73(army, src, trg, total, uid):

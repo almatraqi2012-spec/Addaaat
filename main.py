@@ -27,7 +27,7 @@ user_states = {}
 
 # --- [ 🌐 الربط السحابي بـ MongoDB Atlas ] ---
 # الرابط الخاص بك الذي حفظناه (Cluster0)
-MONGO_URI = "mongodb+srv://alkreem12:Abn-alkreem12@cluster0.p8iub.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URI = "mongodb+srv://Abduh:5D7NJi%25aAAkdRB@cluster0.p8iub.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client_db = pymongo.MongoClient(MONGO_URI)
 db = client_db['dragon_v73_database']
 users_col = db['users']       # بديل جدول users

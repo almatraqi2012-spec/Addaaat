@@ -126,7 +126,7 @@ def start_main(m):
     mk.add("💰 شحن الرصيد", "👤 حسابي")
     mk.add("📊 الإحصائيات", "🗑️ حذف حساب", "🎁 كسب رصيد مجاني")
     if uid == ADMIN_ID: mk.add("💎 لوحة المالك")
-    bot.send_message(uid, "🐲 **دراجون المطور V73**\nأهلاً بك في نظام سهم الجبار.", reply_markup=mk)
+    bot.send_message(uid, "🐲 **دراجون المطور **\nأهلاً بك في بوت دراجون الجبار.", reply_markup=mk)
 
 @bot.message_handler(func=lambda m: m.text == "🎁 كسب رصيد مجاني")
 def referral_menu(m):
@@ -167,7 +167,7 @@ def process_oxa(m):
 @bot.callback_query_handler(func=lambda c: c.data == "pay_man")
 def man_call(c):
     user_states[c.message.chat.id] = "waiting_receipt"
-    bot.send_message(c.message.chat.id, f"💳 المحفظة:\n`{MY_WALLET}`\n📸 أرسل صورة الإيصال.")
+    bot.send_message(c.message.chat.id, f"💳 المحفظة USDT TRC20:\n`{MY_WALLET}`\n📸 ثم أرسل صورة الإيصال.")
 
 @bot.message_handler(content_types=['photo'])
 def handle_receipt(m):

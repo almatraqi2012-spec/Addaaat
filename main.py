@@ -337,6 +337,7 @@ def run_server():
     # تشغيل Flask لاستقبال الدفعات
     app_web.run(host='0.0.0.0', port=PORT)
 if __name__ == '__main__':
-    print("🚀 دراجون V73 ينطلق بكل ميزاته...")
-    threading.Thread(target=run_dummy_server, daemon=True).start()
+    print("🚀 دراجون V73 ينطلق بنظام الشحن التلقائي...")
+    # تشغيل السيرفر في خيط مستقل
+    threading.Thread(target=run_server, daemon=True).start()
     bot.infinity_polling(timeout=60)

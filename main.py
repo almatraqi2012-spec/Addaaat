@@ -10,7 +10,7 @@ import http.server
 import socketserver
 from telethon import TelegramClient, functions, types as tl_types, errors
 from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
-
+from flask import Flask, request
 # ================= [ ⚙️ الإعدادات المركزية ] ================
 BOT_TOKEN = "8574116889:AAHSlnMQE442Y_RWH5hYq4wNcJkOw2LiArM"
 MY_API_ID = 21349867
@@ -150,13 +150,20 @@ def oxa_call(c):
 def process_oxa(m):
     try:
         amt = float(m.text)
-        res = requests.post("https://api.oxapay.com/merchants/request", 
-                           json={'merchant': OXAPAY_KEY, 'amount': amt, 'currency': 'USD'}).json()
+        # استبدل رابط رندر برابط بوتك الحقيقي
+        my_bot_url = "https://your-app-name.onrender.com" 
+        payload = {
+            'merchant': OXAPAY_KEY,
+            'amount': amt,
+            'currency': 'USD',
+            'description': str(m.chat.id),
+            'callbackUrl': f"{my_bot_url}/oxa_callback"
+        }
+        res = requests.post("https://api.oxapay.com/merchants/request", json=payload).json()
         if res.get('payLink'):
-            bot.send_message(m.chat.id, f"✅ فاتورة {amt}$:", 
+            bot.send_message(m.chat.id, f"✅ فاتورة {amt}$ (دفع تلقائي):\n🔗 سيتم شحن رصيدك فور الدفع.", 
                            reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("دفع الآن 🔗", url=res['payLink'])))
     except: bot.send_message(m.chat.id, "⚠️ رقم غير صحيح.")
-
 @bot.callback_query_handler(func=lambda c: c.data == "pay_man")
 def man_call(c):
     user_states[c.message.chat.id] = "waiting_receipt"
@@ -310,7 +317,25 @@ def run_dummy_server():
             self.wfile.write(b"Dragon V73 Pro is Running!")
     with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
         httpd.serve_forever()
+app_web = Flask(__name__)
 
+@app_web.route('/oxa_callback', methods=['POST'])
+def oxa_callback():
+    data = request.json
+    if data.get('status') == 'confirmed':
+        uid = int(data.get('description'))
+        amount = float(data.get('amount'))
+        update_balance(uid, amount)
+        try:
+            bot.send_message(uid, f"🎊 **بشارة!** تم استلام الدفع تلقائياً.\n💰 تم إضافة `{amount}$` إلى رصيدك بنجاح.")
+            bot.send_message(ADMIN_ID, f"💰 **إشعار دفع:** تم شحن `{amount}$` للمستخدم `{uid}` تلقائياً عبر Oxapay.")
+        except: pass
+    return "OK", 200
+
+def run_server():
+    PORT = int(os.environ.get('PORT', 10000))
+    # تشغيل Flask لاستقبال الدفعات
+    app_web.run(host='0.0.0.0', port=PORT)
 if __name__ == '__main__':
     print("🚀 دراجون V73 ينطلق بكل ميزاته...")
     threading.Thread(target=run_dummy_server, daemon=True).start()

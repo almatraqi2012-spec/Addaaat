@@ -1,7 +1,7 @@
 # =============================================================
 # 🐲 دراجون المطور V73 - نسخة "إمبراطور السحاب" 🇾🇪
 # الحقوق محفوظة للإمبراطور راوف | نظام سهم الجبار 2026
-# المحرك الأصلي: سحب المتفاعلين + اختراق المجموعات المخفية
+# المحرك الأصلي الكامل + نظام الإحالات + إصلاح الشحن السحابي
 # =============================================================
 
 import telebot, threading, time, asyncio, requests, random, os
@@ -30,7 +30,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 user_states = {}
 
-# ================= [ 💾 إدارة البيانات السحابية ] ================
+# ================= [ 💾 إدارة البيانات السحابية - إصلاح الشحن ] ================
 
 def get_balance(uid):
     try:
@@ -39,15 +39,20 @@ def get_balance(uid):
             supabase.table("users").insert({"uid": uid, "balance": 0.0}).execute()
             return 0.0
         return round(float(res.data[0]['balance']), 3)
-    except: return 0.0
+    except Exception as e:
+        print(f"Error getting balance: {e}")
+        return 0.0
 
 def update_balance(uid, amt):
     try:
         curr = get_balance(uid)
         new_bal = round(curr + amt, 3)
+        # استخدام upsert لضمان التحديث حتى لو لم يكن المستخدم مسجلاً
         res = supabase.table("users").upsert({"uid": uid, "balance": new_bal}).execute()
         return True if res.data else False
-    except: return False
+    except Exception as e:
+        print(f"Error updating balance: {e}")
+        return False
 
 def save_user_memory(tid):
     try: supabase.table("memory").upsert({"target_id": str(tid)}).execute()
@@ -64,31 +69,24 @@ def get_memory():
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(uid, "🚀 **انطلاق إعصار دراجون... جاري جرد المتفاعلين.**")
-    
     for sess in army:
         if success >= total or get_balance(uid) < PRICE_PER_MEMBER: break
-        added_globally = get_memory() # تحديث القائمة لمنع التكرار اللحظي
-        
+        added_globally = get_memory()
         client = TelegramClient(sess.replace('.session',''), MY_API_ID, MY_API_HASH)
         try:
             await client.connect()
             if not await client.is_user_authorized(): continue
-            
-            # محاولة الانضمام للمجموعات
             try: await client(JoinChannelRequest(src))
             except: pass
             try: await client(JoinChannelRequest(trg))
             except: pass
-            
             targets = []
-            # --- [ استراتيجية سحب المتفاعلين لاختراق الإخفاء ] ---
             async for m in client.iter_messages(src, limit=5000):
-                if len(targets) >= 100: break # سحب دفعة قوية من كل حساب
+                if len(targets) >= 100: break
                 if m.sender_id and str(m.sender_id) not in added_globally:
                     u = await m.get_sender()
                     if isinstance(u, tl_types.User) and not u.bot:
                         if u.id not in [x.id for x in targets]: targets.append(u)
-            
             acc_added = 0
             for t in targets:
                 if success >= total or acc_added >= 45 or get_balance(uid) < PRICE_PER_MEMBER: break
@@ -97,19 +95,13 @@ async def run_sahm_v73(army, src, trg, total, uid):
                     save_user_memory(t.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
                     success += 1; acc_added += 1
-                    if success % 5 == 0:
-                        bot.send_message(uid, f"✅ تم إضافة `{success}` عضو بنجاح..")
-                    # تأخير ذكي لحماية الحسابات من الحظر
+                    if success % 5 == 0: bot.send_message(uid, f"✅ تم إضافة `{success}` عضو..")
                     await asyncio.sleep(random.randint(30, 60))
-                except errors.FloodWaitError as e:
-                    bot.send_message(uid, f"⚠️ الحساب `{sess}` تطلب نوماً لـ {e.seconds} ثانية. ننتقل للتالي.")
-                    break
-                except errors.UserPrivacyRestrictedError: continue
+                except errors.FloodWaitError: break
                 except: continue
             await client.disconnect()
         except: continue
-        
-    bot.send_message(uid, f"🏁 **تمت المهمة بنجاح!**\n✅ الإضافة النهائية: `{success}`\n💰 رصيدك المتبقي: `{get_balance(uid)}$` ")
+    bot.send_message(uid, f"🏁 **تمت المهمة!**\n✅ الإضافة: `{success}`\n💰 الرصيد: `{get_balance(uid)}$` ")
 
 # ================= [ 📱 الواجهة ونظام الإحالة ] ================
 
@@ -117,7 +109,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
 def start_main(m):
     uid = m.chat.id
     get_balance(uid)
-    if uid != ADMIN_ID: bot.send_message(ADMIN_ID, f"👤 **دخول جديد:** `{uid}` | {m.from_user.first_name}")
+    if uid != ADMIN_ID: bot.send_message(ADMIN_ID, f"👤 **دخول جديد:** `{uid}`")
     
     p = m.text.split()
     if len(p) > 1 and p[1].isdigit():
@@ -130,9 +122,14 @@ def start_main(m):
     mk = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     mk.add("⚔️ بدء الأضافه", "➕ إضافة حساب للجيش")
     mk.add("💰 شحن الرصيد", "👤 حسابي")
-    mk.add("📊 الإحصائيات", "🗑️ حذف حساب")
+    mk.add("📊 الإحصائيات", "🗑️ حذف حساب", "🎁 كسب رصيد مجاني")
     if uid == ADMIN_ID: mk.add("💎 لوحة المالك")
-    bot.send_message(uid, "🐲 **دراجون V73 - سهم الجبار**\nنظام التحدي الذي لا يعرف المستحيل.", reply_markup=mk)
+    bot.send_message(uid, "🐲 **دراجون V73 - سهم الجبار**\nنظام التحدي السحابي.", reply_markup=mk)
+
+@bot.message_handler(func=lambda m: m.text == "🎁 كسب رصيد مجاني")
+def referral_menu(m):
+    link = f"https://t.me/{bot.get_me().username}?start={m.chat.id}"
+    bot.send_message(m.chat.id, f"🎁 **نظام الإحالات:**\n\nاربح `{REFERRAL_GIFT}$` عن كل صديق يدخل البوت عبر رابطك:\n`{link}`")
 
 # ================= [ 💰 نظام الشحن المطور ] ================
 
@@ -145,7 +142,7 @@ def pay_m(m):
 
 @bot.callback_query_handler(func=lambda c: c.data == "p_oxa")
 def oxa_c(c):
-    msg = bot.send_message(c.message.chat.id, "💵 **المبلغ المطلوب بالشحن ($):**")
+    msg = bot.send_message(c.message.chat.id, "💵 **المبلغ ($):**")
     bot.register_next_step_handler(msg, oxa_go)
 
 def oxa_go(m):
@@ -154,13 +151,13 @@ def oxa_go(m):
         d = {'merchant': OXAPAY_KEY,'amount': a,'currency': 'USD','description': str(m.chat.id),'callbackUrl': f"{MY_BOT_URL}/oxa_callback"}
         r = requests.post("https://api.oxapay.com/merchants/request", json=d).json()
         if r.get('payLink'):
-            bot.send_message(m.chat.id, f"✅ فاتورة {a}$ جاهزة:", reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("دفع الآن 🔗", url=r['payLink'])))
-    except: bot.send_message(m.chat.id, "⚠️ أدخل رقماً صحيحاً.")
+            bot.send_message(m.chat.id, f"✅ فاتورة {a}$:", reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("دفع الآن 🔗", url=r['payLink'])))
+    except: bot.send_message(m.chat.id, "⚠️ خطأ.")
 
 @bot.callback_query_handler(func=lambda c: c.data == "p_man")
 def man_c(c):
     user_states[c.message.chat.id] = "wait_img"
-    bot.send_message(c.message.chat.id, f"💳 حول لـ USDT TRC20:\n`{MY_WALLET}`\nثم أرسل الإيصال.")
+    bot.send_message(c.message.chat.id, f"💳 حول لـ USDT TRC20:\n`{MY_WALLET}`\nأرسل الإيصال.")
 
 @bot.message_handler(content_types=['photo'])
 def handle_p(m):
@@ -175,18 +172,20 @@ def handle_p(m):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("set_"))
 def admin_c(c):
     try:
-        _, amt, uid = c.data.split('_')
-        if update_balance(int(uid), float(amt)):
-            bot.send_message(int(uid), f"🎊 تم شحن `{amt}$` بنجاح!\n💰 رصيدك: `{get_balance(int(uid))}$` ")
+        parts = c.data.split('_')
+        amt = float(parts[1])
+        uid = int(parts[2])
+        if update_balance(uid, amt):
+            bot.send_message(uid, f"🎊 تم شحن `{amt}$` بنجاح!")
             bot.edit_message_caption(f"✅ تم الشحن للمستخدم {uid}", c.message.chat.id, c.message.message_id)
         else: bot.answer_callback_query(c.id, "❌ خطأ سحابي")
     except Exception as e: bot.answer_callback_query(c.id, f"⚠️ {e}")
 
-# ================= [ 📱 إدارة الجيش والتحقق ] ================
+# ================= [ 📱 إدارة الجيش ] ================
 
 @bot.message_handler(func=lambda m: m.text == "➕ إضافة حساب للجيش")
 def add_s(m):
-    msg = bot.send_message(m.chat.id, "📱 **أرسل الرقم بالمفتاح الدولي:**")
+    msg = bot.send_message(m.chat.id, "📱 **أرسل الرقم مع المفتاح الدولي:**")
     bot.register_next_step_handler(msg, ph_step)
 
 def ph_step(m):
@@ -229,15 +228,15 @@ def pw_step(m, s, p):
         try: await cl.sign_in(password=m.text); return "OK"
         except: return "ER"
         finally: await cl.disconnect()
-    if loop.run_until_complete(sign_p()) == "OK": bot.send_message(m.chat.id, "✅ تم الربط بنجاح!")
-    else: bot.send_message(m.chat.id, "❌ خطأ بكلمة السر.")
+    if loop.run_until_complete(sign_p()) == "OK": bot.send_message(m.chat.id, "✅ تم الربط!")
+    else: bot.send_message(m.chat.id, "❌ خطأ.")
 
 # ================= [ ⚙️ الإحصائيات والحذف ] ================
 
 @bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")
 def st_all(m):
     a = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')]
-    bot.send_message(m.chat.id, f"📊 **إحصائياتك:**\n📱 الجيش: `{len(a)}` حساب\n💰 الرصيد: `{get_balance(m.chat.id)}$` ")
+    bot.send_message(m.chat.id, f"📊 **إحصائياتك:**\n📱 الجيش: `{len(a)}`\n💰 الرصيد: `{get_balance(m.chat.id)}$` ")
 
 @bot.message_handler(func=lambda m: m.text == "🗑️ حذف حساب")
 def del_m(m):
@@ -245,7 +244,7 @@ def del_m(m):
     if not a: return bot.send_message(m.chat.id, "❌ لا يوجد حسابات.")
     mk = types.InlineKeyboardMarkup()
     for s in a: mk.add(types.InlineKeyboardButton(f"❌ {s.split('_')[-1]}", callback_data=f"rm_{s}"))
-    bot.send_message(m.chat.id, "اختر الحساب المراد حذفه:", reply_markup=mk)
+    bot.send_message(m.chat.id, "اختر الحساب:", reply_markup=mk)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("rm_"))
 def rm_c(c):
@@ -253,35 +252,33 @@ def rm_c(c):
     if os.path.exists(f): os.remove(f)
     bot.edit_message_text(f"✅ تم حذف {f.split('_')[-1]}", c.message.chat.id, c.message.message_id)
 
-# ================= [ ⚔️ تشغيل الإضافة ] ================
-
 @bot.message_handler(func=lambda m: m.text == "⚔️ بدء الأضافه")
 def start_at(m):
     if get_balance(m.chat.id) < PRICE_PER_MEMBER: return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
     a = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')]
-    if not a: return bot.send_message(m.chat.id, "❌ أضف حسابات أولاً.")
-    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر (بدون @):**")
+    if not a: return bot.send_message(m.chat.id, "❌ أضف حسابات.")
+    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر:**")
     bot.register_next_step_handler(msg, get_trg, a)
 
 def get_trg(m, a):
-    s = m.text; msg = bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك (بدون @):**")
+    s = m.text; msg = bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك:**")
     bot.register_next_step_handler(msg, get_n, a, s)
 
 def get_n(m, a, s):
-    t = m.text; msg = bot.send_message(m.chat.id, "🔢 **العدد المطلوب نقله:**")
+    t = m.text; msg = bot.send_message(m.chat.id, "🔢 **العدد المطلوب:**")
     bot.register_next_step_handler(msg, go_at, a, s, t)
 
 def go_at(m, a, s, t):
     try:
         n = int(m.text)
         threading.Thread(target=lambda: asyncio.run(run_sahm_v73(a, s, t, n, m.chat.id))).start()
-    except: bot.send_message(m.chat.id, "⚠️ رقم غير صحيح.")
+    except: bot.send_message(m.chat.id, "⚠️ خطأ.")
 
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def my_inf(m):
     bot.send_message(m.chat.id, f"👤 **حسابك:**\n💰 الرصيد: `{get_balance(m.chat.id)}$` \n🆔: `{m.chat.id}`")
 
-# ================= [ 🌐 محرك الويب والـ Callback ] ================
+# ================= [ 🌐 محرك الويب ] ================
 
 web = Flask(__name__)
 
@@ -292,8 +289,8 @@ def callback():
         u = int(d.get('description')); am = float(d.get('amount'))
         if update_balance(u, am):
             try:
-                bot.send_message(u, f"🎊 **بشارة!** تم استلام `{am}$` تلقائياً عبر Oxapay.")
-                bot.send_message(ADMIN_ID, f"💰 شحن آلي: `{am}$` للمستخدم `{u}`")
+                bot.send_message(u, f"🎊 تم استلام `{am}$` تلقائياً!")
+                bot.send_message(ADMIN_ID, f"💰 شحن آلي: `{am}$` لـ `{u}`")
             except: pass
     return "OK", 200
 
@@ -302,7 +299,7 @@ def run_s():
     web.run(host='0.0.0.0', port=p)
 
 if __name__ == '__main__':
-    print("🚀 دراجون V73: جاري التشغيل بنظام الاختراق السحابي...")
+    print("🚀 دراجون V73 ينطلق...")
     threading.Thread(target=run_s, daemon=True).start()
     bot.delete_webhook(drop_pending_updates=True)
     bot.infinity_polling(timeout=60)

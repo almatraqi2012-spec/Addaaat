@@ -23,7 +23,8 @@ MY_WALLET = "TLtLuhkU2kkkR1Wz1TtrBTpoNRTNviYpsA"
 PRICE_PER_MEMBER = 0.007
 REFERRAL_GIFT = 0.05
 
-# --- [ 🔐 إعدادات السحاب Supabase ] ---
+# --- [ 🔐 إعدادات السحاب Supabase المعتمدة ] ---
+# تم وضع المفاتيح الخاصة بك لضمان الأرشفة الأبدية
 SUPABASE_URL = "https://idfbpnhadhcekzzagmmn.supabase.co"
 SUPABASE_KEY = "sb_secret_C3a3Phhj4NxOdx4c-L8G6Q_GPoOoTS5"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -34,40 +35,53 @@ user_states = {}
 # ================= [ 💾 إدارة البيانات الاحترافية - السحاب ] ================
 
 def get_balance(uid):
+    """جلب الرصيد من السحاب لضمان عدم تصفيره في Render"""
     try:
         res = supabase.table("users").select("balance").eq("uid", uid).execute()
         if not res.data:
+            # إذا كان المستخدم جديداً، يتم إنشاؤه برصيد صفر
             supabase.table("users").insert({"uid": uid, "balance": 0.0}).execute()
             return 0.0
         return round(float(res.data[0]['balance']), 3)
-    except: return 0.0
+    except Exception as e:
+        print(f"Error in get_balance: {e}")
+        return 0.0
 
 def update_balance(uid, amt):
+    """تحديث الرصيد مباشرة في السحاب لضمان الحفظ اللحظي"""
     try:
         curr = get_balance(uid)
         new_bal = round(curr + amt, 3)
         supabase.table("users").upsert({"uid": uid, "balance": new_bal}).execute()
-    except: pass
+    except Exception as e:
+        print(f"Error in update_balance: {e}")
 
 def save_account_db(user_id, session_name, phone):
+    """حفظ بيانات الحسابات المربوطة في السحاب"""
     try:
         supabase.table("accounts").upsert({
             "session_name": session_name, 
             "user_id": user_id, 
             "phone": phone
         }).execute()
-    except: pass
+    except Exception as e:
+        print(f"Error in save_account_db: {e}")
 
 def save_user_memory(user_id):
+    """حفظ اليوزر المضاف في الذاكرة السحابية لمنع التكرار"""
     try:
         supabase.table("memory").upsert({"target_id": str(user_id)}).execute()
-    except: pass
+    except Exception as e:
+        print(f"Error in save_user_memory: {e}")
 
 def get_memory():
+    """جلب قائمة المضافين سابقاً من السحاب"""
     try:
         res = supabase.table("memory").select("target_id").execute()
         return [row['target_id'] for row in res.data]
-    except: return []
+    except Exception as e:
+        print(f"Error in get_memory: {e}")
+        return []
 
 # ================= [ ⚔️ محرك سهم V73 - القفز الذكي والاختراق ] ================
 

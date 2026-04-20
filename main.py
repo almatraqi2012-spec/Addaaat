@@ -134,7 +134,7 @@ def start_main(m):
     mk.add("💰 شحن الرصيد", "👤 حسابي")
     mk.add("📊 الإحصائيات", "🗑️ حذف حساب", "🎁 كسب رصيد مجاني")
     if uid == ADMIN_ID: mk.add("💎 لوحة المالك")
-    bot.send_message(uid, "🐲 **دراجون المطور **\nأهلاً بك في بوت دراجون الجبار (النسخة السحابية).", reply_markup=mk)
+    bot.send_message(uid, "🐲 **دراجون المطور **\nأهلاً بك في بوت دراجون الجبار (يمكنك إضافة أعضاء لقروبك من أي قروب تريده).", reply_markup=mk)
 
 @bot.message_handler(func=lambda m: m.text == "🎁 كسب رصيد مجاني")
 def referral_menu(m):

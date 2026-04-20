@@ -334,7 +334,9 @@ def run_server():
     app_web.run(host='0.0.0.0', port=PORT)
 
 if __name__ == '__main__':
-    print("🚀 دراجون V73 ينطلق بنظام السحاب والشحن التلقائي...")
+    print("🚀 دراجون V73 ينطلق بنظام السحاب...")
     threading.Thread(target=run_server, daemon=True).start()
-    # استخدام skip_pending_updates لمنع تعليق البوت عند التشغيل
-    bot.infinity_polling(timeout=60, skip_pending_updates=True)
+    
+    # الحل الصحيح لمسح الرسائل القديمة وتجنب التعليق:
+    bot.delete_webhook(drop_pending_updates=True)
+    bot.infinity_polling(timeout=60)

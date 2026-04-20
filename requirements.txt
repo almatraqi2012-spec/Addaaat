@@ -1,5 +1,5 @@
 pyTelegramBotAPI
 telethon
 requests
-supabase
 flask
+supabase

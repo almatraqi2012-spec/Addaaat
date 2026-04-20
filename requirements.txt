@@ -1,5 +1,5 @@
 pyTelegramBotAPI
 telethon
 requests
-pymongo[srv]
+supabase
 flask

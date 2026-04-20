@@ -329,14 +329,29 @@ def oxa_callback():
         except: pass
     return "OK", 200
 
+# ================= [ 🚀 تشغيل المحركات بنظام الصدمة ] ================
+
 def run_server():
+    # تأكد من أن منفذ Render مفتوح دائماً لتجنب توقف السيرفر
     PORT = int(os.environ.get('PORT', 10000))
     app_web.run(host='0.0.0.0', port=PORT)
 
 if __name__ == '__main__':
-    print("🚀 دراجون V73 ينطلق بنظام السحاب...")
+    print("🚀 دراجون V73: السحاب متصل.. جاري تنظيف الجلسات القديمة...")
+    
+    # تشغيل خادم الويب في خلفية منفصلة
     threading.Thread(target=run_server, daemon=True).start()
     
-    # الحل الصحيح لمسح الرسائل القديمة وتجنب التعليق:
-    bot.delete_webhook(drop_pending_updates=True)
-    bot.infinity_polling(timeout=60)
+    try:
+        # أهم خطوة: حذف الـ Webhook ومسح الرسائل المعلقة (تجنب خطأ 409)
+        bot.delete_webhook(drop_pending_updates=True)
+        time.sleep(2) # انتظار بسيط للتأكد من استجابة سيرفر تيليجرام
+        
+        # التشغيل اللانهائي مع خاصية عدم التوقف
+        bot.infinity_polling(timeout=60, long_polling_timeout=20)
+        
+    except Exception as e:
+        print(f"⚠️ حدث خطأ أثناء التشغيل: {e}")
+        # محاولة إعادة التشغيل تلقائياً بعد 5 ثواني في حال الفشل
+        time.sleep(5)
+        os.system("python dragooon.py")

@@ -1,16 +1,16 @@
 # =============================================================
-# 🐲 دراجون المطور V73 - نسخة الأرشفة الأبدية 🇾🇪
+# 🐲 دراجون المطور V73 - نسخة الأرشفة السحابية 🇾🇪
 # الحقوق محفوظة للإمبراطور راوف | نظام سهم الجبار
-# الإصدار المستقر لبيئة Render - قوة SQLite القصوى
+# الإصدار السحابي (Supabase) لضمان عدم ضياع الأرصدة
 # ============================================================
 
-import telebot, threading, time, asyncio, requests, random, os, sqlite3
+import telebot, threading, time, asyncio, requests, random, os
 from telebot import types
-import http.server
-import socketserver
 from telethon import TelegramClient, functions, types as tl_types, errors
 from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
 from flask import Flask, request
+from supabase import create_client, Client
+
 # ================= [ ⚙️ الإعدادات المركزية ] ================
 BOT_TOKEN = "8574116889:AAHSlnMQE442Y_RWH5hYq4wNcJkOw2LiArM"
 MY_API_ID = 21349867
@@ -20,47 +20,52 @@ OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU"
 MY_WALLET = "TLtLuhkU2kkkR1Wz1TtrBTpoNRTNviYpsA"
 PRICE_PER_MEMBER = 0.007
 REFERRAL_GIFT = 0.05
+# رابط الرندر الخاص بك
+MY_BOT_URL = "https://dragon-bot-gblf.onrender.com"
+
+# --- [ 🔐 ربط الخزنة السحابية Supabase ] ---
+SUPABASE_URL = "https://idfbpnhadhcekzzagmmn.supabase.co"
+SUPABASE_KEY = "sb_secret_C3a3Phhj4NxOdx4c-L8G6Q_GPoOoTS5"
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 user_states = {}
 
-# ================= [ 💾 إدارة البيانات الاحترافية - SQLite ] ================
-
-def get_db():
-    conn = sqlite3.connect('dragon_v73.db', check_same_thread=False)
-    conn.execute('CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, balance REAL DEFAULT 0.0)')
-    conn.execute('CREATE TABLE IF NOT EXISTS accounts (session_name TEXT PRIMARY KEY, user_id INTEGER, phone TEXT)')
-    conn.execute('CREATE TABLE IF NOT EXISTS memory (target_id TEXT PRIMARY KEY)')
-    conn.commit()
-    return conn
-
-db_conn = get_db()
+# ================= [ 💾 إدارة البيانات السحابية - بديل SQLite ] ================
 
 def get_balance(uid):
-    row = db_conn.execute("SELECT balance FROM users WHERE uid=?", (uid,)).fetchone()
-    if not row:
-        db_conn.execute("INSERT INTO users (uid, balance) VALUES (?, 0.0)", (uid,))
-        db_conn.commit()
-        return 0.0
-    return round(row[0], 3)
+    try:
+        res = supabase.table("users").select("balance").eq("uid", uid).execute()
+        if not res.data:
+            supabase.table("users").insert({"uid": uid, "balance": 0.0}).execute()
+            return 0.0
+        return round(res.data[0]['balance'], 3)
+    except: return 0.0
 
 def update_balance(uid, amt):
-    db_conn.execute("UPDATE users SET balance = balance + ? WHERE uid = ?", (round(amt, 3), uid))
-    db_conn.commit()
+    current = get_balance(uid)
+    new_bal = round(current + amt, 3)
+    supabase.table("users").update({"balance": new_bal}).eq("uid", uid).execute()
 
 def save_account_db(user_id, session_name, phone):
-    db_conn.execute("INSERT OR REPLACE INTO accounts (session_name, user_id, phone) VALUES (?, ?, ?)", 
-                   (session_name, user_id, phone))
-    db_conn.commit()
+    try:
+        supabase.table("accounts").upsert({
+            "session_name": session_name, 
+            "user_id": user_id, 
+            "phone": phone
+        }).execute()
+    except: pass
 
 def save_user_memory(user_id):
     try:
-        db_conn.execute("INSERT INTO memory (target_id) VALUES (?)", (str(user_id),))
-        db_conn.commit()
+        supabase.table("memory").insert({"target_id": str(user_id)}).execute()
     except: pass
 
 def get_memory():
-    return [row[0] for row in db_conn.execute("SELECT target_id FROM memory").fetchall()]
+    try:
+        res = supabase.table("memory").select("target_id").execute()
+        return [row['target_id'] for row in res.data]
+    except: return []
 
 # ================= [ ⚔️ محرك سهم V73 - القفز الذكي والاختراق ] ================
 
@@ -75,14 +80,12 @@ async def run_sahm_v73(army, src, trg, total, uid):
             await client.connect()
             if not await client.is_user_authorized(): continue
             
-            # محاولة الانضمام للمصدر والهدف
             try: await client(JoinChannelRequest(src))
             except: pass
             try: await client(JoinChannelRequest(trg))
             except: pass
 
             targets = []
-            # ميزة اختراق المجموعات المخفية عبر سحب المتفاعلين من الرسائل
             async for m in client.iter_messages(src, limit=3000):
                 if len(targets) >= 100: break
                 if m.sender_id and str(m.sender_id) not in added_list:
@@ -112,7 +115,12 @@ async def run_sahm_v73(army, src, trg, total, uid):
 @bot.message_handler(commands=['start'])
 def start_main(m):
     uid = m.chat.id
-    get_balance(uid) # تسجيل المستخدم
+    get_balance(uid) 
+    
+    # إشعار دخول المالك (الرادار الشخصي)
+    if uid != ADMIN_ID:
+        bot.send_message(ADMIN_ID, f"👤 **دخول جديد:**\n🆔: `{uid}`\n📛: {m.from_user.first_name}")
+
     params = m.text.split()
     if len(params) > 1 and params[1].isdigit():
         ref_id = int(params[1])
@@ -126,7 +134,7 @@ def start_main(m):
     mk.add("💰 شحن الرصيد", "👤 حسابي")
     mk.add("📊 الإحصائيات", "🗑️ حذف حساب", "🎁 كسب رصيد مجاني")
     if uid == ADMIN_ID: mk.add("💎 لوحة المالك")
-    bot.send_message(uid, "🐲 **دراجون المطور **\nأهلاً بك في بوت دراجون الجبار.", reply_markup=mk)
+    bot.send_message(uid, "🐲 **دراجون المطور **\nأهلاً بك في بوت دراجون الجبار (النسخة السحابية).", reply_markup=mk)
 
 @bot.message_handler(func=lambda m: m.text == "🎁 كسب رصيد مجاني")
 def referral_menu(m):
@@ -150,20 +158,19 @@ def oxa_call(c):
 def process_oxa(m):
     try:
         amt = float(m.text)
-        # استبدل رابط رندر برابط بوتك الحقيقي
-        my_bot_url = "https://your-app-name.onrender.com" 
         payload = {
             'merchant': OXAPAY_KEY,
             'amount': amt,
             'currency': 'USD',
             'description': str(m.chat.id),
-            'callbackUrl': f"{my_bot_url}/oxa_callback"
+            'callbackUrl': f"{MY_BOT_URL}/oxa_callback"
         }
         res = requests.post("https://api.oxapay.com/merchants/request", json=payload).json()
         if res.get('payLink'):
             bot.send_message(m.chat.id, f"✅ فاتورة {amt}$ (دفع تلقائي):\n🔗 سيتم شحن رصيدك فور الدفع.", 
                            reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("دفع الآن 🔗", url=res['payLink'])))
     except: bot.send_message(m.chat.id, "⚠️ رقم غير صحيح.")
+
 @bot.callback_query_handler(func=lambda c: c.data == "pay_man")
 def man_call(c):
     user_states[c.message.chat.id] = "waiting_receipt"
@@ -270,8 +277,7 @@ def finalize_delete(c):
     fname = c.data.replace("rm_", "")
     try:
         if os.path.exists(fname): os.remove(fname)
-        db_conn.execute("DELETE FROM accounts WHERE session_name=?", (fname,))
-        db_conn.commit()
+        supabase.table("accounts").delete().eq("session_name", fname).execute()
         bot.answer_callback_query(c.id, "✅ تم الحذف")
         bot.edit_message_text(f"✅ تم حذف الحساب `{fname.split('_')[-1]}`.", c.message.chat.id, c.message.message_id)
     except Exception as e: bot.answer_callback_query(c.id, f"❌ خطأ: {str(e)}")
@@ -306,38 +312,29 @@ def info(m):
     army = len([f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_")])
     bot.send_message(m.chat.id, f"👤 **حسابك:**\n💰 الرصيد: `{bal}$` \n📱 الجيش: `{army}`")
 
-# ================= [ 🌐 خادم الويب للإبقاء حياً في Render ] ================
+# ================= [ 🌐 استقبال الدفع التلقائي Flask ] ================
 
-def run_dummy_server():
-    PORT = int(os.environ.get('PORT', 10000))
-    class MyHandler(http.server.SimpleHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"Dragon V73 Pro is Running!")
-    with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
-        httpd.serve_forever()
 app_web = Flask(__name__)
 
 @app_web.route('/oxa_callback', methods=['POST'])
 def oxa_callback():
     data = request.json
-    if data.get('status') == 'confirmed':
+    if data.get('status') in ['confirmed', 'paid']:
         uid = int(data.get('description'))
         amount = float(data.get('amount'))
         update_balance(uid, amount)
         try:
             bot.send_message(uid, f"🎊 **بشارة!** تم استلام الدفع تلقائياً.\n💰 تم إضافة `{amount}$` إلى رصيدك بنجاح.")
-            bot.send_message(ADMIN_ID, f"💰 **إشعار دفع:** تم شحن `{amount}$` للمستخدم `{uid}` تلقائياً عبر Oxapay.")
+            bot.send_message(ADMIN_ID, f"💰 **إشعار دفع:** شحن `{amount}$` للمستخدم `{uid}` تلقائياً.")
         except: pass
     return "OK", 200
 
 def run_server():
     PORT = int(os.environ.get('PORT', 10000))
-    # تشغيل Flask لاستقبال الدفعات
     app_web.run(host='0.0.0.0', port=PORT)
+
 if __name__ == '__main__':
-    print("🚀 دراجون V73 ينطلق بنظام الشحن التلقائي...")
-    # تشغيل السيرفر في خيط مستقل
+    print("🚀 دراجون V73 ينطلق بنظام السحاب والشحن التلقائي...")
     threading.Thread(target=run_server, daemon=True).start()
-    bot.infinity_polling(timeout=60)
+    # استخدام skip_pending_updates لمنع تعليق البوت عند التشغيل
+    bot.infinity_polling(timeout=60, skip_pending_updates=True)

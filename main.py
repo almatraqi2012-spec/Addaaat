@@ -109,7 +109,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
                     update_balance(uid, -PRICE_PER_MEMBER)
                     success += 1; count += 1
                     bot.send_message(uid, f"✅ الحساب `{s_name}`\n➕ أضاف: [{t.first_name}](tg://user?id={t.id})")
-                    await asyncio.sleep(random.randint(30, 55))
+                    await asyncio.sleep(random.randint(35, 55))
                 except errors.FloodWaitError as e:
                     bot.send_message(uid, f"⚠️ الحساب `{s_name}` مقيد لـ {e.seconds} ثانية.")
                     break

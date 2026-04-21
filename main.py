@@ -297,5 +297,10 @@ def oxa_cb():
 
 if __name__ == '__main__':
     print("🚀 دراجون V73 ينطلق...")
+    # حذف الـ Webhook لضمان عدم وجود تعارض مع الـ Polling
+    bot.remove_webhook() 
+    
     threading.Thread(target=lambda: app_web.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000))), daemon=True).start()
-    bot.infinity_polling(timeout=60)
+    
+    # استخدام infinity_polling مع خاصية skip_pending لعدم تكرار الأوامر القديمة
+    bot.infinity_polling(timeout=60, skip_pending=True)

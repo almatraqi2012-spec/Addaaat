@@ -2,9 +2,9 @@
 # 🐲 دراجون المطور V73 - نسخة الأرشفة الأبدية 🇾🇪
 # الحقوق محفوظة للإمبراطور راوف | نظام سهم الجبار
 # الإصدار المستقر لبيئة Render - قوة SQLite القصوى
-# ===========================================================
+# ============================================================
 
-import telebot, threading, time, asyncio, requests, random, os, 
+import telebot, threading, time, asyncio, requests, random, os, sqlite3
 from telebot import types
 import http.server
 import socketserver
@@ -20,143 +20,93 @@ OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU"
 MY_WALLET = "TLtLuhkU2kkkR1Wz1TtrBTpoNRTNviYpsA"
 PRICE_PER_MEMBER = 0.007
 REFERRAL_GIFT = 0.05
-# الروابط والمفاتيح التي استخرجناها من موقع Supabase
-SUPABASE_URL = "https://idfbpnhadhcekzzagmmn.supabase.co"
-SUPABASE_KEY = "sb_secret_C3a3Phhj4NxOdx4c-L8G6Q_GPoOoTS5"
 
-# إنشاء اتصال رسمي مع السحاب
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 user_states = {}
 
-# ================= [ ☁️ إدارة البيانات الاحترافية - السحاب الذكي ] ================
+# ================= [ 💾 إدارة البيانات الاحترافية - SQLite ] ================
 
-# الروابط التي استخرجناها من موقع Supabase (تأكد من صحتها)
-SUPABASE_URL = "https://idfbpnhadhcekzzagmmn.supabase.co"
-SUPABASE_KEY = "sb_secret_C3a3Phhj4NxOdx4c-L8G6Q_GPoOoTS5"
+def get_db():
+    conn = sqlite3.connect('dragon_v73.db', check_same_thread=False)
+    conn.execute('CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, balance REAL DEFAULT 0.0)')
+    conn.execute('CREATE TABLE IF NOT EXISTS accounts (session_name TEXT PRIMARY KEY, user_id INTEGER, phone TEXT)')
+    conn.execute('CREATE TABLE IF NOT EXISTS memory (target_id TEXT PRIMARY KEY)')
+    conn.commit()
+    return conn
 
-# إنشاء الاتصال بالسحاب
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+db_conn = get_db()
 
 def get_balance(uid):
-    """جلب رصيد المستخدم من السحاب وضمان تسجيله إذا كان جديداً"""
-    try:
-        res = supabase.table("users").select("balance").eq("uid", uid).execute()
-        if not res.data:
-            supabase.table("users").insert({"uid": uid, "balance": 0.0}).execute()
-            return 0.0
-        return round(float(res.data[0]['balance']), 3)
-    except Exception as e:
-        print(f"❌ خطأ سحابي في الرصيد: {e}")
+    row = db_conn.execute("SELECT balance FROM users WHERE uid=?", (uid,)).fetchone()
+    if not row:
+        db_conn.execute("INSERT INTO users (uid, balance) VALUES (?, 0.0)", (uid,))
+        db_conn.commit()
         return 0.0
+    return round(row[0], 3)
 
 def update_balance(uid, amt):
-    """تحديث الرصيد فوراً (شحن أو خصم)"""
-    try:
-        curr = get_balance(uid)
-        new_bal = round(curr + amt, 3)
-        supabase.table("users").upsert({"uid": uid, "balance": new_bal}).execute()
-        return True
-    except Exception as e:
-        print(f"❌ خطأ سحابي في التحديث: {e}")
-        return False
+    db_conn.execute("UPDATE users SET balance = balance + ? WHERE uid = ?", (round(amt, 3), uid))
+    db_conn.commit()
 
-def save_user_memory(target_id):
-    """حفظ الأعضاء المضافين لمنع التكرار (الذاكرة الفولاذية)"""
+def save_account_db(user_id, session_name, phone):
+    db_conn.execute("INSERT OR REPLACE INTO accounts (session_name, user_id, phone) VALUES (?, ?, ?)",
+                   (session_name, user_id, phone))
+    db_conn.commit()
+
+def save_user_memory(user_id):
     try:
-        supabase.table("memory").upsert({"target_id": str(target_id)}).execute()
+        db_conn.execute("INSERT INTO memory (target_id) VALUES (?)", (str(user_id),))
+        db_conn.commit()
     except: pass
 
 def get_memory():
-    """استرجاع قائمة المضافين من السحاب"""
-    try:
-        res = supabase.table("memory").select("target_id").execute()
-        return [str(row['target_id']) for row in res.data]
-    except: return []
+    return [row[0] for row in db_conn.execute("SELECT target_id FROM memory").fetchall()]
 
-def save_account_cloud(uid, phone, session_name):
-    """حفظ الحساب المربوط لضمان عدم ضياعه"""
-    try:
-        data = {"uid": uid, "phone": phone, "session_name": session_name}
-        supabase.table("accounts").upsert(data).execute()
-    except: pass
-
-# ==============================================================================
 # ================= [ ⚔️ محرك سهم V73 - القفز الذكي والاختراق ] ================
 
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
-    bot.send_message(uid, "🚀 **تفعيل رادار سهم الجبار... جاري كشف المخفي والمتفاعل.**")
-    
+    bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري اختراق المصدر.**")
     for session_file in army:
         if success >= total or get_balance(uid) < PRICE_PER_MEMBER: break
-        added_list = get_memory() # الذاكرة السحابية لمنع التكرار
+        added_list = get_memory()
         client = TelegramClient(session_file.replace('.session',''), MY_API_ID, MY_API_HASH)
-        
         try:
             await client.connect()
             if not await client.is_user_authorized(): continue
 
-            # محاولة الدخول للمصدر والهدف لضمان الصلاحيات
+            # محاولة الانضمام للمصدر والهدف
             try: await client(JoinChannelRequest(src))
             except: pass
             try: await client(JoinChannelRequest(trg))
             except: pass
 
             targets = []
-            bot.send_message(uid, f"🔍 **[{session_file}]** جاري تحليل الخوارزميات وسحب المتفاعلين...")
-
-            # --- [ خوارزمية الاختراق الذكي ] ---
-            # سحب من الرسائل + التفاعلات + التعليقات (للتحدي واختراق المخفي)
-            async for m in client.iter_messages(src, limit=2000):
-                if len(targets) >= 150: break # جمع كمية كافية قبل البدء
-                
-                # 1. سحب صاحب الرسالة (المتفاعل بالكتابة)
+            # ميزة اختراق المجموعات المخفية عبر سحب المتفاعلين من الرسائل
+            async for m in client.iter_messages(src, limit=3000):
+                if len(targets) >= 100: break
                 if m.sender_id and str(m.sender_id) not in added_list:
                     u = await m.get_sender()
                     if isinstance(u, tl_types.User) and not u.bot:
                         if u.id not in [x.id for x in targets]: targets.append(u)
 
-                # 2. اختراق التفاعلات (Reactions) - من يضع إيموجي هو صيد ثمين
-                if m.reactions:
-                    try:
-                        async for user in client.iter_participants(src, filter=tl_types.ChannelParticipantsRecent):
-                            if len(targets) >= 150: break
-                            if str(user.id) not in added_list and not user.bot:
-                                if user.id not in [x.id for x in targets]: targets.append(user)
-                    except: pass
-
-            # --- [ مرحلة التنفيذ والاكتساح ] ---
             count = 0
             for t in targets:
-                if success >= total or count >= 45 or get_balance(uid) < PRICE_PER_MEMBER: break
+                if success >= total or count >= 40 or get_balance(uid) < PRICE_PER_MEMBER: break
                 try:
-                    # محاولة الإضافة (الاختراق المباشر)
                     await client(InviteToChannelRequest(trg, [t]))
-                    
-                    # حفظ في السحاب فوراً لضمان عدم التكرار حتى لو طفى البوت
                     save_user_memory(t.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
-                    
                     success += 1; count += 1
                     if success % 5 == 0:
-                        bot.send_message(uid, f"✅ **اكتساح سهم:** أضاف `{success}` عضو بنجاح.")
-                    
-                    # فاصل زمني ذكي لتجنب الحظر (Human Behavior)
-                    await asyncio.sleep(random.randint(35, 55))
-                    
-                except errors.FloodWaitError as e:
-                    bot.send_message(uid, f"⚠️ الحساب `{session_file}` تعرض لتقييد مؤقت {e.seconds} ثانية.")
-                    break # الانتقال للحساب التالي في الجيش
-                except errors.UserPrivacyRestrictedError: continue # خصوصية العضو
+                        bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
+                    await asyncio.sleep(random.randint(30, 60))
+                except errors.FloodWaitError: break
                 except: continue
-                
             await client.disconnect()
-        except Exception as e:
-            print(f"Error in session {session_file}: {e}")
-            continue
+        except: continue
+    bot.send_message(uid, f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 المتبقي: `{get_balance(uid)}$` ")
 
-    bot.send_message(uid, f"🏁 **تمت المهمة بنجاح يا إمبراطور!**\n✅ إجمالي الإضافة: `{success}`\n💰 رصيدك الحالي: `{get_balance(uid)}$` ")
 # ================= [ 📱 الواجهة الرئيسية ونظام الإحالة ] ================
 
 @bot.message_handler(commands=['start'])

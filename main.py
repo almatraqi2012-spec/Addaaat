@@ -62,51 +62,43 @@ def save_user_memory(user_id):
 def get_memory():
     return [row[0] for row in db_conn.execute("SELECT target_id FROM memory").fetchall()]
 
-# ================= [ ⚔️ محرك سهم V73 - القفز الذكي والاختراق ] ================
-
+# ================= [ ⚔️ محرك سهم V73 - القفز التلقائي ] ================
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري اختراق المصدر.**")
+
     for session_file in army:
         if success >= total or get_balance(uid) < PRICE_PER_MEMBER: break
         added_list = get_memory()
-        client = TelegramClient(session_file.replace('.session',''), MY_API_ID, MY_API_HASH)
+        client = TelegramClient(session_file.replace('.session',''), MY_API_ID, MY_API_>
         try:
             await client.connect()
             if not await client.is_user_authorized(): continue
-
-            # محاولة الانضمام للمصدر والهدف
-            try: await client(JoinChannelRequest(src))
-            except: pass
-            try: await client(JoinChannelRequest(trg))
-            except: pass
-
             targets = []
-            # ميزة اختراق المجموعات المخفية عبر سحب المتفاعلين من الرسائل
-            async for m in client.iter_messages(src, limit=3000):
+            async for m in client.iter_messages(src, limit=5000):
                 if len(targets) >= 100: break
                 if m.sender_id and str(m.sender_id) not in added_list:
                     u = await m.get_sender()
                     if isinstance(u, tl_types.User) and not u.bot:
                         if u.id not in [x.id for x in targets]: targets.append(u)
-
             count = 0
             for t in targets:
-                if success >= total or count >= 40 or get_balance(uid) < PRICE_PER_MEMBER: break
+                if success >= total or count >= 45 or get_balance(uid) < PRICE_PER_MEMB>
                 try:
                     await client(InviteToChannelRequest(trg, [t]))
                     save_user_memory(t.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
                     success += 1; count += 1
-                    if success % 5 == 0:
-                        bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
-                    await asyncio.sleep(random.randint(30, 60))
-                except errors.FloodWaitError: break
-                except: continue
+                    bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
+                    await asyncio.sleep(random.randint(10, 40))
+                except errors.FloodWaitError:
+                    break # القفز الفوري للحساب التالي عند الحظر
+                except:
+                    continue
             await client.disconnect()
         except: continue
-    bot.send_message(uid, f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 المتبقي: `{get_balance(uid)}$` ")
 
+    bot.send_message(uid, f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 الرصيد ا>
 # ================= [ 📱 الواجهة الرئيسية ونظام الإحالة ] ================
 
 @bot.message_handler(commands=['start'])
@@ -336,6 +328,9 @@ def run_server():
     PORT = int(os.environ.get('PORT', 10000))
     # تشغيل Flask لاستقبال الدفعات
     app_web.run(host='0.0.0.0', port=PORT)
+    @app_web.route('/')
+def health_check():
+    return "Dragon V73 Pro is Running!", 200
 if __name__ == '__main__':
     print("🚀 دراجون V73 ينطلق بنظام الشحن التلقائي...")
     # تشغيل السيرفر في خيط مستقل

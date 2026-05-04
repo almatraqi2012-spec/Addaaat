@@ -3,7 +3,6 @@
 # الحقوق محفوظة للإمبراطور راوف | نظام سهم الجبار
 # الإصدار المستقر لبيئة Render - قوة SQLite القصوى
 # ============================================================
-
 import telebot, threading, time, asyncio, requests, random, os, sqlite3
 from telebot import types
 import http.server
@@ -11,6 +10,7 @@ import socketserver
 from telethon import TelegramClient, functions, types as tl_types, errors
 from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
 from flask import Flask, request
+
 # ================= [ ⚙️ الإعدادات المركزية ] ================
 BOT_TOKEN = "8791690196:AAGvZp93UlVdiw-afcZHaF03n46v-OA-PW8"
 MY_API_ID = 21349867

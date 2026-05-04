@@ -321,13 +321,15 @@ def oxa_callback():
         except: pass
     return "OK", 200
 
-def run_server():
-    PORT = int(os.environ.get('PORT', 10000))
-    # تشغيل Flask لاستقبال الدفعات
-    app_web.run(host='0.0.0.0', port=PORT)
-    @app_web.route('/')
 def health_check():
     return "Dragon V73 Pro is Running!", 200
+
+def run_server():
+    PORT = int(os.environ.get('PORT', 10000))
+    # إعداد المسار داخل الدالة أو خارجها بشكل صحيح
+    app_web.add_url_rule('/', 'health_check', health_check)
+    app_web.run(host='0.0.0.0', port=PORT)
+
 if __name__ == '__main__':
     print("🚀 دراجون V73 ينطلق بنظام الشحن التلقائي...")
     # تشغيل السيرفر في خيط مستقل

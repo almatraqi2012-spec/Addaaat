@@ -66,11 +66,10 @@ def get_memory():
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري اختراق المصدر.**")
-
     for session_file in army:
         if success >= total or get_balance(uid) < PRICE_PER_MEMBER: break
         added_list = get_memory()
-        client = TelegramClient(session_file.replace('.session',''), MY_API_ID, MY_API_>
+        client = TelegramClient(session_file.replace('.session',''), MY_API_ID, MY_API_HASH)
         try:
             await client.connect()
             if not await client.is_user_authorized(): continue
@@ -83,22 +82,20 @@ async def run_sahm_v73(army, src, trg, total, uid):
                         if u.id not in [x.id for x in targets]: targets.append(u)
             count = 0
             for t in targets:
-                if success >= total or count >= 45 or get_balance(uid) < PRICE_PER_MEMB>
+                if success >= total or count >= 40 or get_balance(uid) < PRICE_PER_MEMBER: break
                 try:
                     await client(InviteToChannelRequest(trg, [t]))
                     save_user_memory(t.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
                     success += 1; count += 1
                     bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
-                    await asyncio.sleep(random.randint(10, 40))
-                except errors.FloodWaitError:
-                    break # القفز الفوري للحساب التالي عند الحظر
-                except:
-                    continue
+                    await asyncio.sleep(random.randint(30, 60))
+                except errors.FloodWaitError: break
+                except: continue
             await client.disconnect()
         except: continue
+    bot.send_message(uid, f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 المتبقي: `{get_balance(uid)}$` ")
 
-    bot.send_message(uid, f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 الرصيد ا>
 # ================= [ 📱 الواجهة الرئيسية ونظام الإحالة ] ================
 
 @bot.message_handler(commands=['start'])

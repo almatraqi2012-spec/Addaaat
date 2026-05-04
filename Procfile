@@ -1,1 +1,1 @@
-worker: python aladafmadfa.py
+worker: python main.py

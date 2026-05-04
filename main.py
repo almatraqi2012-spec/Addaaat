@@ -82,14 +82,14 @@ async def run_sahm_v73(army, src, trg, total, uid):
                         if u.id not in [x.id for x in targets]: targets.append(u)
             count = 0
             for t in targets:
-                if success >= total or count >= 40 or get_balance(uid) < PRICE_PER_MEMBER: break
+                if success >= total or count >= 45 or get_balance(uid) < PRICE_PER_MEMBER: break
                 try:
                     await client(InviteToChannelRequest(trg, [t]))
                     save_user_memory(t.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
                     success += 1; count += 1
                     bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
-                    await asyncio.sleep(random.randint(30, 60))
+                    await asyncio.sleep(random.randint(10, 30))
                 except errors.FloodWaitError: break
                 except: continue
             await client.disconnect()

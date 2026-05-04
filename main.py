@@ -3,14 +3,17 @@
 # الحقوق محفوظة للإمبراطور راوف | نظام سهم الجبار
 # الإصدار المستقر لبيئة Render - قوة SQLite القصوى
 # ============================================================
+# --- المكتبات التي لديك بالفعل ---
 import telebot, threading, time, asyncio, requests, random, os, sqlite3
 from telebot import types
-import http.server
-import socketserver
 from telethon import TelegramClient, functions, types as tl_types, errors
 from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
-from flask import Flask, request
 
+# --- ⚠️ المكتبات الناقصة (يجب إضافتها فوراً) ---
+from datetime import datetime, timedelta # ضروري لبرمجة "تصاعد الأرصدة" وحساب الوقت
+import json # للتعامل مع ملفات الإعدادات والذاكرة (added_list)
+from telethon.tl.functions.messages import GetMessagesReactionsRequest, GetHistoryRequest # أساسي لسحب المتفاعلين بالإيموجي في المجموعات المخفية
+from telethon.tl.functions.users import GetFullUserRequest # لجلب آيدي العضو في حال كان مخفياً
 # ================= [ ⚙️ الإعدادات المركزية ] ================
 BOT_TOKEN = "8791690196:AAGvZp93UlVdiw-afcZHaF03n46v-OA-PW8"
 MY_API_ID = 21349867
@@ -63,39 +66,87 @@ def get_memory():
     return [row[0] for row in db_conn.execute("SELECT target_id FROM memory").fetchall()]
 
 # ================= [ ⚔️ محرك سهم V73 - القفز التلقائي ] ================
-async def run_sahm_v73(army, src, trg, total, uid):
+async def run_dragon_force_v73(army, src, trg, total, uid):
     success = 0
-    bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري اختراق المصدر.**")
+    bot.send_message(uid, "🐲 **رادار الدراجون مفعّل.. جاري اختراق القيود وسحب المتفاعلين.**")
+    
+    # تقسيم العدد المطلوب على عدد الحسابات المتوفرة
+    per_account = total // len(army) if len(army) > 0 else total
+
     for session_file in army:
         if success >= total or get_balance(uid) < PRICE_PER_MEMBER: break
-        added_list = get_memory()
-        client = TelegramClient(session_file.replace('.session',''), MY_API_ID, MY_API_HASH)
+        
+        session_name = session_file.replace('.session','')
+        client = TelegramClient(session_name, MY_API_ID, MY_API_HASH)
+        
         try:
             await client.connect()
-            if not await client.is_user_authorized(): continue
+            if not await client.is_user_authorized():
+                bot.send_message(uid, f"⚠️ الحساب `{session_name}` منتهي الجلسة.. قفز.")
+                continue
+            
+            # فحص التقييد (SpamBlock)
+            try:
+                await client(functions.messages.SendMessageRequest(peer='@SpamBot', message='/start'))
+            except errors.UserBannedInChannelError:
+                bot.send_message(uid, f"🚫 الحساب `{session_name}` مقيد.. القفز للتالي.")
+                continue
+
+            added_list = get_memory() # قائمة المخزنين سابقاً لمنع التكرار
             targets = []
-            async for m in client.iter_messages(src, limit=5000):
+
+            # --- خوارزمية السحب العميق (حتى للمخفي والقنوات) ---
+            # 1. سحب المتفاعلين بالايموجي (للأعضاء المتفاعلين فقط)
+            async for msg in client.iter_messages(src, limit=1000):
+                if msg.reactions:
+                    async for user in client.iter_participants(src, filter=types.ChannelParticipantsRecent):
+                        if user.id not in [x.id for x in targets] and str(user.id) not in added_list:
+                            targets.append(user)
                 if len(targets) >= 100: break
-                if m.sender_id and str(m.sender_id) not in added_list:
+
+            # 2. سحب المتحدثين في الدردشة (للمجموعات المخفية)
+            if len(targets) < 50:
+                async for m in client.iter_messages(src, limit=5000):
                     u = await m.get_sender()
-                    if isinstance(u, tl_types.User) and not u.bot:
-                        if u.id not in [x.id for x in targets]: targets.append(u)
-            count = 0
+                    if isinstance(u, types.User) and not u.bot:
+                        if u.id not in [x.id for x in targets] and str(u.id) not in added_list:
+                            targets.append(u)
+
+            # --- عملية الإضافة القتالية ---
+            acc_added = 0
             for t in targets:
-                if success >= total or count >= 45 or get_balance(uid) < PRICE_PER_MEMBER: break
+                if success >= total or acc_added >= per_account or get_balance(uid) < PRICE_PER_MEMBER:
+                    break
+                
                 try:
+                    # محاولة الإضافة المباشرة
                     await client(InviteToChannelRequest(trg, [t]))
                     save_user_memory(t.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
-                    success += 1; count += 1
-                    bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
-                    await asyncio.sleep(random.randint(10, 30))
-                except errors.FloodWaitError: break
-                except: continue
-            await client.disconnect()
-        except: continue
-    bot.send_message(uid, f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 المتبقي: `{get_balance(uid)}$` ")
+                    success += 1
+                    acc_added += 1
+                    
+                    if success % 10 == 0:
+                        bot.send_message(uid, f"🔥 تم إضافة `{success}` أعضاء حتى الآن..")
+                    
+                    # وقت انتظار عشوائي ذكي لتجنب الحظر
+                    await asyncio.sleep(random.randint(10, 35))
+                    
+                except errors.PeerFloodError:
+                    bot.send_message(uid, f"🥶 حساب `{session_name}` تعب (Flood).. القفز للتالي.")
+                    break # القفز للحساب التالي
+                except errors.UserPrivacyRestrictedError:
+                    continue # العضو مغلق الخصوصية، انتقل للذي يليه
+                except Exception as e:
+                    continue
 
+            await client.disconnect()
+            
+        except Exception as e:
+            bot.send_message(uid, f"❌ خطأ في الحساب `{session_name}`: {str(e)}")
+            continue
+
+    bot.send_message(uid, f"🏁 **اكتملت مهمة الدراجون!**\n✅ إجمالي الإضافة: `{success}`\n💰 المتبقي في محفظتك: `{get_balance(uid)}$` ")
 # ================= [ 📱 الواجهة الرئيسية ونظام الإحالة ] ================
 
 @bot.message_handler(commands=['start'])

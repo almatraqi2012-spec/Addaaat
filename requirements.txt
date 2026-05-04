@@ -2,3 +2,4 @@ pyTelegramBotAPI
 telethon
 requests
 flask
+telebot

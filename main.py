@@ -67,87 +67,42 @@ def get_memory():
     return [row[0] for row in db_conn.execute("SELECT target_id FROM memory").fetchall()]
 
 # ================= [ ⚔️ محرك سهم V73 - القفز التلقائي ] ================
-async def run_dragon_force_v73(army, src, trg, total, uid):
+async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
-    bot.send_message(uid, "🐲 **رادار الدراجون مفعّل.. جاري اختراق القيود وسحب المتفاعلين.**")
-    
-    # تقسيم العدد المطلوب على عدد الحسابات المتوفرة
-    per_account = total // len(army) if len(army) > 0 else total
+    bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري اختراق المصدر.**")
 
     for session_file in army:
         if success >= total or get_balance(uid) < PRICE_PER_MEMBER: break
-        
-        session_name = session_file.replace('.session','')
-        client = TelegramClient(session_name, MY_API_ID, MY_API_HASH)
-        
+        added_list = get_memory()
+        client = TelegramClient(session_file.replace('.session',''), MY_API_ID, MY_API_HASH)
         try:
             await client.connect()
-            if not await client.is_user_authorized():
-                bot.send_message(uid, f"⚠️ الحساب `{session_name}` منتهي الجلسة.. قفز.")
-                continue
-            
-            # فحص التقييد (SpamBlock)
-            try:
-                await client(functions.messages.SendMessageRequest(peer='@SpamBot', message='/start'))
-            except errors.UserBannedInChannelError:
-                bot.send_message(uid, f"🚫 الحساب `{session_name}` مقيد.. القفز للتالي.")
-                continue
-
-            added_list = get_memory() # قائمة المخزنين سابقاً لمنع التكرار
+            if not await client.is_user_authorized(): continue
             targets = []
-
-            # --- خوارزمية السحب العميق (حتى للمخفي والقنوات) ---
-            # 1. سحب المتفاعلين بالايموجي (للأعضاء المتفاعلين فقط)
-            async for msg in client.iter_messages(src, limit=1000):
-                if msg.reactions:
-                    async for user in client.iter_participants(src, filter=types.ChannelParticipantsRecent):
-                        if user.id not in [x.id for x in targets] and str(user.id) not in added_list:
-                            targets.append(user)
+            async for m in client.iter_messages(src, limit=5000):
                 if len(targets) >= 100: break
-
-            # 2. سحب المتحدثين في الدردشة (للمجموعات المخفية)
-            if len(targets) < 50:
-                async for m in client.iter_messages(src, limit=5000):
+                if m.sender_id and str(m.sender_id) not in added_list:
                     u = await m.get_sender()
-                    if isinstance(u, types.User) and not u.bot:
-                        if u.id not in [x.id for x in targets] and str(u.id) not in added_list:
-                            targets.append(u)
-
-            # --- عملية الإضافة القتالية ---
-            acc_added = 0
+                    if isinstance(u, tl_types.User) and not u.bot:
+                        if u.id not in [x.id for x in targets]: targets.append(u)
+            count = 0
             for t in targets:
-                if success >= total or acc_added >= per_account or get_balance(uid) < PRICE_PER_MEMBER:
-                    break
-                
+                if success >= total or count >= 45 or get_balance(uid) < PRICE_PER_MEMBER: break
                 try:
-                    # محاولة الإضافة المباشرة
                     await client(InviteToChannelRequest(trg, [t]))
                     save_user_memory(t.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
-                    success += 1
-                    acc_added += 1
-                    
-                    if success % 10 == 0:
-                        bot.send_message(uid, f"🔥 تم إضافة `{success}` أعضاء حتى الآن..")
-                    
-                    # وقت انتظار عشوائي ذكي لتجنب الحظر
-                    await asyncio.sleep(random.randint(10, 35))
-                    
-                except errors.PeerFloodError:
-                    bot.send_message(uid, f"🥶 حساب `{session_name}` تعب (Flood).. القفز للتالي.")
-                    break # القفز للحساب التالي
-                except errors.UserPrivacyRestrictedError:
-                    continue # العضو مغلق الخصوصية، انتقل للذي يليه
-                except Exception as e:
+                    success += 1; count += 1
+                    bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
+                    await asyncio.sleep(random.randint(10, 30))
+                except errors.FloodWaitError:
+                    break # القفز الفوري للحساب التالي عند الحظر
+                except:
                     continue
-
             await client.disconnect()
-            
-        except Exception as e:
-            bot.send_message(uid, f"❌ خطأ في الحساب `{session_name}`: {str(e)}")
-            continue
+        except: continue
 
-    bot.send_message(uid, f"🏁 **اكتملت مهمة الدراجون!**\n✅ إجمالي الإضافة: `{success}`\n💰 المتبقي في محفظتك: `{get_balance(uid)}$` ")
+    bot.send_message(uid, f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 الرصيد المتبقي: `{get_balance(uid)}$` ")
 # ================= [ 📱 الواجهة الرئيسية ونظام الإحالة ] ================
 
 @bot.message_handler(commands=['start'])

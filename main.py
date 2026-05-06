@@ -4,6 +4,7 @@
 # الإصدار المستقر لبيئة Render - قوة SQLite القصوى
 # ============================================================
 # --- المكتبات التي لديك بالفعل ---
+from flask import Flask, render_template, request
 import telebot, threading, time, asyncio, requests, random, os, sqlite3
 from telebot import types
 from telethon import TelegramClient, functions, types as tl_types, errors

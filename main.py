@@ -16,7 +16,7 @@ import json # للتعامل مع ملفات الإعدادات والذاكرة
 from telethon.tl.functions.messages import GetMessagesReactionsRequest, GetHistoryRequest # أساسي لسحب المتفاعلين بالإيموجي في المجموعات المخفية
 from telethon.tl.functions.users import GetFullUserRequest # لجلب آيدي العضو في حال كان مخفياً
 # ================= [ ⚙️ الإعدادات المركزية ] ================
-BOT_TOKEN = "BOT_TOKEN"
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
 MY_API_ID = 21349867
 MY_API_HASH = '7ced3ee4c80117bd5138410811b91f9f'
 ADMIN_ID = 6016547718

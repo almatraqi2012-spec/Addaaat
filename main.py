@@ -326,16 +326,22 @@ def process_code(m, ph, h, sess):
 
 def process_password(m, sess, ph):
     loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
-    cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)          async def sign_p():
+    cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)          
+    async def sign_p():
         await cl.connect()
-        try: await cl.sign_in(password=m.text); return "OK"                   except Exception as e: return str(e)
-        finally: await cl.disconnect()                                    try:
+        try: await cl.sign_in(password=m.text); return "OK"                   
+            except Exception as e: return str(e)
+        finally: await cl.disconnect()                                    
+            try:
         if loop.run_until_complete(sign_p()) == "OK":
             bot.send_message(m.chat.id, "✅ **تم الربط!**")
-            save_account_db(m.chat.id, sess, ph)                              else: bot.send_message(m.chat.id, "❌ خطأ في كلمة السر.")
+            save_account_db(m.chat.id, sess, ph)                             
+        else: bot.send_message(m.chat.id, "❌ خطأ في كلمة السر.")
     finally: loop.close()
-                                                                      # ================= [ ⚙️ الحذف والإحصائيات ] ================          
-@bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")        def stats_all(m):
+                                                                     
+# ================= [ ⚙️ الحذف والإحصائيات ] ================          
+@bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")       
+def stats_all(m):
     army = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')]
     bot.send_message(m.chat.id, f"📊 **إحصائياتك:**\n📱 الجيش: `{len(army)}`\n💰 الرصيد: `{get_balance(m.chat.id)}$` ")
 
@@ -345,25 +351,30 @@ def delete_acc_menu(m):
     if not army: return bot.send_message(m.chat.id, "❌ لا يوجد حسابات.")
     mk = types.InlineKeyboardMarkup()
     for s in army:
-        num = s.split('_')[-1].replace('.session', '')                        mk.add(types.InlineKeyboardButton(f"❌ حذف: {num}", callback_data=f"rm_{s}"))
+        num = s.split('_')[-1].replace('.session', '')                      
+        mk.add(types.InlineKeyboardButton(f"❌ حذف: {num}", callback_data=f"rm_{s}"))
     bot.send_message(m.chat.id, "اختر الحساب لحذفه:", reply_markup=mk)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("rm_"))  def finalize_delete(c):
     fname = c.data.replace("rm_", "")                                     try:
-        if os.path.exists(fname): os.remove(fname)                            db_conn.execute("DELETE FROM accounts WHERE session_name=?", (fname,))
+        if os.path.exists(fname): os.remove(fname)                            
+            db_conn.execute("DELETE FROM accounts WHERE session_name=?", (fname,))
         db_conn.commit()
         bot.answer_callback_query(c.id, "✅ تم الحذف")
         bot.edit_message_text(f"✅ تم حذف الحساب `{fname.split('_')[-1]}`.", c.message.chat.id, c.message.message_id)
     except Exception as e: bot.answer_callback_query(c.id, f"❌ خطأ: {str(e)}")                                                             
 @bot.message_handler(func=lambda m: m.text == "⚔️ بدء الأضافه")
-def start_attack_cmd(m):                                                  if get_balance(m.chat.id) < PRICE_PER_MEMBER: return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
+def start_attack_cmd(m):                                                 
+    if get_balance(m.chat.id) < PRICE_PER_MEMBER: return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
     army = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')]
     if not army: return bot.send_message(m.chat.id, "❌ أضف حسابات أولاً.")
-    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر (بدون @):**")     bot.register_next_step_handler(msg, step_target, army)
+    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر (بدون @):**")    
+    bot.register_next_step_handler(msg, step_target, army)
 
 def step_target(m, army):
     src = m.text
-    msg = bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك (بدون @):**")    bot.register_next_step_handler(msg, step_num, army, src)
+    msg = bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك (بدون @):**")   
+    bot.register_next_step_handler(msg, step_num, army, src)
 
 def step_num(m, army, src):
     trg = m.text
@@ -374,13 +385,15 @@ def finalize_attack(m, army, src, trg):
         num = int(m.text)
         threading.Thread(target=lambda: asyncio.run(run_dragon_force_v73(army, src, trg, num, m.chat.id))).start()                              except: bot.send_message(m.chat.id, "❌ أدخل رقم صحيح.")
 
-@bot.message_handler(func=lambda m: m.text == "👤 حسابي")             def info(m):
+@bot.message_handler(func=lambda m: m.text == "👤 حسابي")             
+def info(m):
     bal = get_balance(m.chat.id)
     army = len([f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_")])                                                              bot.send_message(m.chat.id, f"👤 **حسابك:**\n💰 الرصيد: `{bal}$` \n📱 الجيش: `{army}`")
 
 def check_my_pay(chat_id, track_id, amount):
     # محاولة الفحص كل دقيقة (لمدة 30 دقيقة)
-    for _ in range(30):                                                       import time
+    for _ in range(30):                                                      
+        import time
         time.sleep(60)
         try:
             # طلب التأكد من الفاتورة
@@ -393,9 +406,11 @@ def check_my_pay(chat_id, track_id, amount):
                 update_balance(chat_id, amount)
                 bot.send_message(chat_id, f"✅ تم استلام {amount}$ وتحديث رصيدك تلقائياً!")
                 break
-        except:                                                                   continue
+        except:                                                                  
+            continue
 # ================= [ 🌐 خادم الويب للإبقاء حياً في Render ] ================
-                                                                      def run_dummy_server():
+                                                                     
+        def run_dummy_server():
     PORT = int(os.environ.get('PORT', 10000))
     class MyHandler(http.server.SimpleHTTPRequestHandler):
         def do_GET(self):
@@ -403,9 +418,11 @@ def check_my_pay(chat_id, track_id, amount):
             self.end_headers()
             self.wfile.write(b"Dragon V73 Pro is Running!")
     with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
-        httpd.serve_forever()                                         app_web = Flask(__name__)
+        httpd.serve_forever()                                         
+        app_web = Flask(__name__)
                                                                       
-def health_check():                                                       return "Dragon V73 Pro is Running!", 200
+def health_check():                                                      
+    return "Dragon V73 Pro is Running!", 200
 
 def run_server():
     PORT = int(os.environ.get('PORT', 10000))
@@ -416,4 +433,5 @@ def run_server():
 if __name__ == '__main__':
     print("🚀 دراجون V73 ينطلق بنظام الشحن التلقائي...")
     # تشغيل السيرفر في خيط مستقل
-    threading.Thread(target=run_server, daemon=True).start()              bot.infinity_polling(timeout=60)
+    threading.Thread(target=run_server, daemon=True).start()             
+    bot.infinity_polling(timeout=60)

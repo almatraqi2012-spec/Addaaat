@@ -1,4 +1,4 @@
-#============================================================
+# ============================================================
 # 🐲 دراجون المطور V73 - نسخة الأرشفة الأبدية 🇾🇪
 # الحقوق محفوظة للإمبراطور راوف | نظام سهم الجبار
 # الإصدار المستقر لبيئة Render - قوة SQLite القصوى
@@ -16,7 +16,7 @@ import json # للتعامل مع ملفات الإعدادات والذاكرة
 from telethon.tl.functions.messages import GetMessagesReactionsRequest, GetHistoryRequest # أساسي لسحب المتفاعلين بالإيموجي في المجموعات المخفية
 from telethon.tl.functions.users import GetFullUserRequest # لجلب آيدي العضو في حال كان مخفياً
 # ================= [ ⚙️ الإعدادات المركزية ] ================
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
+BOT_TOKEN =os.environ.get('BOT_TOKEN')
 MY_API_ID = 21349867
 MY_API_HASH = '7ced3ee4c80117bd5138410811b91f9f'
 ADMIN_ID = 6016547718
@@ -179,44 +179,29 @@ def referral_menu(m):
 
 # ================= [ 💳 نظام الشحن المطور ] ================
 
+# ================= [ 💳 نظام الشحن المطور (تلقائي + يدوي) ] ================
+
+# 1. القائمة الرئيسية للشحن
 @bot.message_handler(func=lambda m: m.text == "💰 شحن الرصيد")
 def payment_menu(m):
     mk = types.InlineKeyboardMarkup(row_width=1)
-    mk.add(types.InlineKeyboardButton("⚡ شحن آلي (Oxapay)", callback_data="pay_oxa"),
-           types.InlineKeyboardButton("💳 شحن يدوي (إيصال)", callback_data="pay_man"))
+    mk.add(
+        types.InlineKeyboardButton("⚡ شحن آلي (Oxapay)", callback_data="pay_oxa"),
+        types.InlineKeyboardButton("💳 شحن يدوي (إيصال)", callback_data="pay_man")
+    )
     bot.send_message(m.chat.id, f"💰 رصيدك الحالي: `{get_balance(m.chat.id)}$`", reply_markup=mk)
+
+# ---------------- [ قسم الشحن الآلي Oxapay ] ----------------
 
 @bot.callback_query_handler(func=lambda c: c.data == "pay_oxa")
 def oxa_call(c):
-    # إرسال الرسالة وتخزينها في متغير msg
     msg = bot.send_message(c.message.chat.id, "💵 **أدخل المبلغ المطلوب بالشحن ($):**")
-
-    # ربط الرسالة التالية بدالة المعالجة فوراً وبدقة
     bot.register_next_step_handler(msg, process_oxa)
 
-def smart_check_payment(chat_id, track_id, amount):
-    # فحص كل دقيقة لمدة 40 دقيقة
-    for _ in range(40):
-        time.sleep(60)
-        try:
-            check_res = requests.post("https://api.oxapay.com/merchants/inquiry", json={
-                'merchant': OXAPAY_KEY,
-                'trackId': track_id
-            }).json()
-
-            if check_res.get('status') == 'Paid':
-                # تحديث الرصيد في قاعدة بياناتك (استخدم الدالة الخاصة بك هنا)
-                update_balance(chat_id, amount)
-                bot.send_message(chat_id, f"✅ **تم تأكيد الدفع!**\n💰 أضيف لرصيدك: `{amount}$` بنجاح.")
-                break
-            elif check_res.get('status') in ['Expired', 'Canceled']:
-                break
-        except: continue
 def process_oxa(m):
     if not m.text: return
     try:
         amt = float(m.text.strip())
-        # -- هذا هو الجزء الشغال عندك تماماً --
         payload = {
             'merchant': OXAPAY_KEY,
             'amount': amt,
@@ -225,7 +210,6 @@ def process_oxa(m):
         }
         res = requests.post("https://api.oxapay.com/merchants/request", json=payload).json()
 
-        # نستخدم نفس منطقك القديم لعرض الرسالة
         track_id = res.get('trackId')
         pay_url = res.get('payLink')
 
@@ -236,56 +220,63 @@ def process_oxa(m):
                            f"✅ فاتورة {amt}$ (دفع تلقائي):\n🔗 سيتم شحن رصيدك فور الدفع.",
                            reply_markup=markup)
 
-            # --- الإضافة الوحيدة: تشغيل محرك الفحص في الخلفية ---
+            # تشغيل الفحص الآلي في الخلفية
             threading.Thread(target=auto_check_payment, args=(m.chat.id, track_id, amt)).start()
         else:
             bot.send_message(m.chat.id, "❌ عذراً، فشل في توليد رابط الدفع.")
+    except:
+        bot.send_message(m.chat.id, "⚠️ يرجى إرسال المبلغ بالأرقام فقط.")
 
-    except Exception as e:
-        print(f"Error: {e}")
-        bot.send_message(m.chat.id, "⚠️ يرجى إرسال المبلغ المطلوب بالأرقام فقط.")
-
-# أضف هذه الدالة تحتها مباشرة (هي التي ستضيف الرصيد للمشترك)
 def auto_check_payment(chat_id, track_id, amount):
-    # سيفحص البوت كل دقيقة لمدة ساعة كاملة حتى يجد الدفع
+    # فحص كل دقيقة لمدة 60 دقيقة
     for _ in range(60):
         time.sleep(60)
         try:
-            # نسأل Oxapay: هل دفع المشترك صاحب هذا الـ track_id؟
             check = requests.post("https://api.oxapay.com/merchants/inquiry", json={
                 'merchant': OXAPAY_KEY,
                 'trackId': track_id
             }).json()
-
             if check.get('status') == 'Paid' or check.get('result') == '100':
-                # هذه الدالة موجودة في كودك الأصلي لتحديث قاعدة البيانات
                 update_balance(chat_id, amount)
                 bot.send_message(chat_id, f"🎊 **بشارة!** تم استلام الدفع تلقائياً.\n💰 تم إضافة `{amount}$` إلى رصيدك بنجاح.")
-                break # توقف عن الفحص بعد النجاح
-        except:
-            continue
-# دالة الفحص التلقائي (أضفها تحت دالة process_oxa)
+                break
+        except: continue
+
+# ---------------- [ قسم الشحن اليدوي (الإيصالات) ] ----------------
+
+# هذا الجزء هو الذي كان يحتاج لتركيز (ربط الزر بالدالة)
+@bot.callback_query_handler(func=lambda c: c.data == "pay_man")
 def man_call(c):
+    # تفعيل حالة الانتظار ضروري لكي يفهم البوت أن الصورة القادمة هي إيصال
     user_states[c.message.chat.id] = "waiting_receipt"
-    bot.send_message(c.message.chat.id, f"💳 المحفظة USDT TRC20:\n`{MY_WALLET}`\n📸 ثم أرسل صورة الإيصال.")
+    bot.send_message(c.message.chat.id, f"🏦 **الشحن اليدوي:**\n\nالمحفظة USDT TRC20:\n`{MY_WALLET}`\n\n📸 أرسل صورة الإيصال هنا بعد التحويل.")
 
 @bot.message_handler(content_types=['photo'])
 def handle_receipt(m):
+    # التحقق من أن المستخدم ضغط على زر الشحن اليدوي
     if user_states.get(m.chat.id) == "waiting_receipt":
         mk = types.InlineKeyboardMarkup().add(
             types.InlineKeyboardButton("✅ 5$", callback_data=f"set_5_{m.chat.id}"),
             types.InlineKeyboardButton("✅ 10$", callback_data=f"set_10_{m.chat.id}"),
             types.InlineKeyboardButton("✅ 50$", callback_data=f"set_50_{m.chat.id}")
         )
-        bot.send_photo(ADMIN_ID, m.photo[-1].file_id, caption=f"📩 إيصال من: `{m.chat.id}`", reply_markup=mk)
-        bot.reply_to(m, "⏳ جارٍ مراجعته..."); user_states[m.chat.id] = None
+        bot.send_photo(ADMIN_ID, m.photo[-1].file_id,
+                      caption=f"📩 إيصال شحن جديد\n👤 الشخص: `{m.chat.id}`",
+                      reply_markup=mk)
+        bot.reply_to(m, "⏳ تم استلام الإيصال، جارٍ المراجعة من قبل الإدارة...")
+        # تصفير الحالة لكي لا يتداخل مع صور أخرى
+        user_states[m.chat.id] = None
 
+# تأكيد الشحن من قبل الآدمن
 @bot.callback_query_handler(func=lambda c: c.data.startswith("set_"))
 def admin_confirm(c):
-    _, amt, uid = c.data.split('_'); update_balance(int(uid), float(amt))
-    bot.send_message(int(uid), f"🎉 تم شحن {amt}$!");
-    bot.edit_message_caption("✅ تم التأكيد", c.message.chat.id, c.message.message_id)
-
+    try:
+        _, amt, uid = c.data.split('_')
+        update_balance(int(uid), float(amt))
+        bot.send_message(int(uid), f"🎉 **بشارة!** تم شحن حسابك بـ {amt}$ بنجاح.")
+        bot.edit_message_caption(f"✅ تم الشحن بنجاح ({amt}$)", c.message.chat.id, c.message.message_id)
+    except Exception as e:
+        bot.answer_callback_query(c.id, "❌ خطأ في العملية")
 # ================= [ 📱 نظام ربط الحسابات ] ================
 
 @bot.message_handler(func=lambda m: m.text == "➕ إضافة حساب للجيش")
@@ -335,23 +326,16 @@ def process_code(m, ph, h, sess):
 
 def process_password(m, sess, ph):
     loop = asyncio.new_event_loop(); asyncio.set_event_loop(loop)
-    cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)
-    async def sign_p():
+    cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)          async def sign_p():
         await cl.connect()
-        try: await cl.sign_in(password=m.text); return "OK"
-        except Exception as e: return str(e)
-        finally: await cl.disconnect()
-    try:
+        try: await cl.sign_in(password=m.text); return "OK"                   except Exception as e: return str(e)
+        finally: await cl.disconnect()                                    try:
         if loop.run_until_complete(sign_p()) == "OK":
             bot.send_message(m.chat.id, "✅ **تم الربط!**")
-            save_account_db(m.chat.id, sess, ph)
-        else: bot.send_message(m.chat.id, "❌ خطأ في كلمة السر.")
+            save_account_db(m.chat.id, sess, ph)                              else: bot.send_message(m.chat.id, "❌ خطأ في كلمة السر.")
     finally: loop.close()
-
-# ================= [ ⚙️ الحذف والإحصائيات ] ================
-
-@bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")
-def stats_all(m):
+                                                                      # ================= [ ⚙️ الحذف والإحصائيات ] ================          
+@bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")        def stats_all(m):
     army = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')]
     bot.send_message(m.chat.id, f"📊 **إحصائياتك:**\n📱 الجيش: `{len(army)}`\n💰 الرصيد: `{get_balance(m.chat.id)}$` ")
 
@@ -361,73 +345,57 @@ def delete_acc_menu(m):
     if not army: return bot.send_message(m.chat.id, "❌ لا يوجد حسابات.")
     mk = types.InlineKeyboardMarkup()
     for s in army:
-        num = s.split('_')[-1].replace('.session', '')
-        mk.add(types.InlineKeyboardButton(f"❌ حذف: {num}", callback_data=f"rm_{s}"))
+        num = s.split('_')[-1].replace('.session', '')                        mk.add(types.InlineKeyboardButton(f"❌ حذف: {num}", callback_data=f"rm_{s}"))
     bot.send_message(m.chat.id, "اختر الحساب لحذفه:", reply_markup=mk)
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("rm_"))
-def finalize_delete(c):
-    fname = c.data.replace("rm_", "")
-    try:
-        if os.path.exists(fname): os.remove(fname)
-        db_conn.execute("DELETE FROM accounts WHERE session_name=?", (fname,))
+@bot.callback_query_handler(func=lambda c: c.data.startswith("rm_"))  def finalize_delete(c):
+    fname = c.data.replace("rm_", "")                                     try:
+        if os.path.exists(fname): os.remove(fname)                            db_conn.execute("DELETE FROM accounts WHERE session_name=?", (fname,))
         db_conn.commit()
         bot.answer_callback_query(c.id, "✅ تم الحذف")
         bot.edit_message_text(f"✅ تم حذف الحساب `{fname.split('_')[-1]}`.", c.message.chat.id, c.message.message_id)
-    except Exception as e: bot.answer_callback_query(c.id, f"❌ خطأ: {str(e)}")
-
+    except Exception as e: bot.answer_callback_query(c.id, f"❌ خطأ: {str(e)}")                                                             
 @bot.message_handler(func=lambda m: m.text == "⚔️ بدء الأضافه")
-def start_attack_cmd(m):
-    if get_balance(m.chat.id) < PRICE_PER_MEMBER: return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
+def start_attack_cmd(m):                                                  if get_balance(m.chat.id) < PRICE_PER_MEMBER: return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
     army = [f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_") and f.endswith('.session')]
     if not army: return bot.send_message(m.chat.id, "❌ أضف حسابات أولاً.")
-    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر (بدون @):**")
-    bot.register_next_step_handler(msg, step_target, army)
+    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر (بدون @):**")     bot.register_next_step_handler(msg, step_target, army)
 
 def step_target(m, army):
     src = m.text
-    msg = bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك (بدون @):**")
-    bot.register_next_step_handler(msg, step_num, army, src)
+    msg = bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك (بدون @):**")    bot.register_next_step_handler(msg, step_num, army, src)
 
 def step_num(m, army, src):
     trg = m.text
     msg = bot.send_message(m.chat.id, "🔢 **العدد المطلوب:**")
-    bot.register_next_step_handler(msg, finalize_attack, army, src, trg)
-
+    bot.register_next_step_handler(msg, finalize_attack, army, src, trg)                                                                    
 def finalize_attack(m, army, src, trg):
     try:
         num = int(m.text)
-        threading.Thread(target=lambda: asyncio.run(run_dragon_force_v73(army, src, trg, num, m.chat.id))).start()
-    except: bot.send_message(m.chat.id, "❌ أدخل رقم صحيح.")
+        threading.Thread(target=lambda: asyncio.run(run_dragon_force_v73(army, src, trg, num, m.chat.id))).start()                              except: bot.send_message(m.chat.id, "❌ أدخل رقم صحيح.")
 
-@bot.message_handler(func=lambda m: m.text == "👤 حسابي")
-def info(m):
+@bot.message_handler(func=lambda m: m.text == "👤 حسابي")             def info(m):
     bal = get_balance(m.chat.id)
-    army = len([f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_")])
-    bot.send_message(m.chat.id, f"👤 **حسابك:**\n💰 الرصيد: `{bal}$` \n📱 الجيش: `{army}`")
+    army = len([f for f in os.listdir('.') if f.startswith(f"sess_{m.chat.id}_")])                                                              bot.send_message(m.chat.id, f"👤 **حسابك:**\n💰 الرصيد: `{bal}$` \n📱 الجيش: `{army}`")
 
 def check_my_pay(chat_id, track_id, amount):
     # محاولة الفحص كل دقيقة (لمدة 30 دقيقة)
-    for _ in range(30):
-        import time
+    for _ in range(30):                                                       import time
         time.sleep(60)
         try:
             # طلب التأكد من الفاتورة
             res = requests.post("https://api.oxapay.com/merchants/inquiry", json={
                 'merchant': OXAPAY_KEY,
                 'trackId': track_id
-            }, timeout=20).json()
-
+            }, timeout=20).json()                                     
             if res.get('status') == 'Paid':
                 # هنا السطر الذي يضيف الرصيد (تأكد أن اسم الدالة عندك update_balance)
                 update_balance(chat_id, amount)
                 bot.send_message(chat_id, f"✅ تم استلام {amount}$ وتحديث رصيدك تلقائياً!")
                 break
-        except:
-            continue
+        except:                                                                   continue
 # ================= [ 🌐 خادم الويب للإبقاء حياً في Render ] ================
-
-def run_dummy_server():
+                                                                      def run_dummy_server():
     PORT = int(os.environ.get('PORT', 10000))
     class MyHandler(http.server.SimpleHTTPRequestHandler):
         def do_GET(self):
@@ -435,12 +403,9 @@ def run_dummy_server():
             self.end_headers()
             self.wfile.write(b"Dragon V73 Pro is Running!")
     with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
-        httpd.serve_forever()
-app_web = Flask(__name__)
-
-
-def health_check():
-    return "Dragon V73 Pro is Running!", 200
+        httpd.serve_forever()                                         app_web = Flask(__name__)
+                                                                      
+def health_check():                                                       return "Dragon V73 Pro is Running!", 200
 
 def run_server():
     PORT = int(os.environ.get('PORT', 10000))
@@ -451,5 +416,4 @@ def run_server():
 if __name__ == '__main__':
     print("🚀 دراجون V73 ينطلق بنظام الشحن التلقائي...")
     # تشغيل السيرفر في خيط مستقل
-    threading.Thread(target=run_server, daemon=True).start()
-    bot.infinity_polling(timeout=60)
+    threading.Thread(target=run_server, daemon=True).start()              bot.infinity_polling(timeout=60)

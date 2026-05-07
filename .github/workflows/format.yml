@@ -1,0 +1,26 @@
+name: Auto Format Code
+
+on: [push] # يشتغل تلقائياً عند كل رفع للكود
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Black
+        run: pip install black
+
+      - name: Fix formatting with Black
+        run: black . # سيقوم بتعديل كل ملفات الـ .py وتنسيق المسافات فوراً
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "🔧 تم إصلاح المسافات وتنسيق الكود تلقائياً"

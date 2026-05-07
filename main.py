@@ -91,8 +91,9 @@ async def run_sahm_v73(army, src, trg, total, uid):
                     await client(InviteToChannelRequest(trg, [t]))
                     save_user_memory(t.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
-                    success += 1; count += 1                                        bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
-                    await asyncio.sleep(random.randint(30, 60))
+                    success += 1; count += 1                                       
+                    bot.send_message(uid, f"➕ [{session_file}] أضاف: `{t.first_name}`")
+                    await asyncio.sleep(random.randint(20, 40))
                 except errors.FloodWaitError: break
                 except: continue
             await client.disconnect()

@@ -1,21 +1,30 @@
-name: Run Bot Always
+name: addaaat Auto Run
+
 on:
-  workflow_dispatch: # هذا يجعله يعمل يدوياً بضغطة زر
   push:
-    branches: [ main ] # يعمل عند كل تحديث للكود
+    branches: [ main ] # يشتغل تلقائياً عند رفع كود جديد
+  schedule:
+    - cron: '0 */6 * * *' # يعيد تشغيل نفسه كل 6 ساعات لضمان الاستمرارية
+  workflow_dispatch: # يسمح لك بتشغيله يدوياً وقتما تشاء
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Run Bot
+          python-version: '3.10' # نسخة مستقرة للعمل على سيرفرات جيت هب
+
+      - name: Install Dependencies
+        run: |
+          pip install python-telegram-bot flask pymongo # أضف مكاتبك هنا
+
+      - name: Run addaaat Bot
         env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-        run: python main.py
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }} # سحب التوكن بأمان
+          MONGO_URL: ${{ secrets.MONGO_URL }} # سحب قاعدة البيانات بأمان
+        run: python main.py # اسم ملفك المشفر

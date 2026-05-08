@@ -2,10 +2,10 @@ name: addaaat Auto Run
 
 on:
   push:
-    branches: [ main ] # يشتغل تلقائياً عند رفع كود جديد
+    branches: [ main ]
   schedule:
-    - cron: '0 */6 * * *' # يعيد تشغيل نفسه كل 6 ساعات لضمان الاستمرارية
-  workflow_dispatch: # يسمح لك بتشغيله يدوياً وقتما تشاء
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -17,14 +17,15 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # نسخة مستقرة للعمل على سيرفرات جيت هب
+          python-version: '3.10'
 
       - name: Install Dependencies
         run: |
-          pip install python-telegram-bot flask pymongo # أضف مكاتبك هنا
+          python -m pip install --upgrade pip
+          # التعديل الجوهري هنا: تثبيت المكتبات الصحيحة لكودك
+          pip install pyTelegramBotAPI telethon requests flask
 
       - name: Run addaaat Bot
         env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }} # سحب التوكن بأمان
-          MONGO_URL: ${{ secrets.MONGO_URL }} # سحب قاعدة البيانات بأمان
-        run: python main.py # اسم ملفك المشفر
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+        run: python main.py

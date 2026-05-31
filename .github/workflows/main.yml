@@ -7,6 +7,10 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch:
 
+# 🔥 تم إضافة هذا السطر لحل التحذير وتفعيل Node 24 فوراً وتجنب توقف البوت مستقبلاً
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -22,10 +26,9 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          # التعديل الجوهري هنا: تثبيت المكتبات الصحيحة لكودك
           pip install pyTelegramBotAPI telethon requests flask
-
+          
       - name: Run addaaat Bot
         env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }} 
         run: python main.py

@@ -1,4 +1,5 @@
-pyTelegramBotAPI
+python-telegram-bot
+supabase
+httpx
+flask
 telethon
-requests
-flask 

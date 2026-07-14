@@ -3,29 +3,23 @@
 # الحقوق محفوظة للمطور الرسمي | نظام شهم الجبار
 # الاستضافة المستقرة للبوت سحابياً - بوابة Supabase الأقوى
 # ==========================================================
-# --- المكتبات التي يحتاجها البوت ---
-import random
-import os
-import logging
-import threading
-import time
 import asyncio
-import requests
-from supabase import create_client, Client
+from datetime import datetime, timedelta
 from flask import Flask
-
+import json
+import logging
+import os
+import random
+import requests
 import telebot
 from telebot import types
-from telethon import TelegramClient, functions, types as tl_types, errors
-from telethon.tl.functions.channels import JoinChannelRequest, InviteToChannelRequest
-
-# --- ⚠️ المكتبات الإضافية ---
-from datetime import datetime, timedelta
-import json
-from telethon.tl.functions.messages import (
-    GetMessagesReactionsRequest,
-    GetHistoryRequest,
-)
+import threading
+import time
+from supabase import create_client, Client
+from telethon import TelegramClient, errors, functions
+from telethon import types as tl_types
+from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRequest
+from telethon.tl.functions.messages import GetHistoryRequest, GetMessagesReactionsRequest
 from telethon.tl.functions.users import GetFullUserRequest
 
 # ================= [ ⚙️ الإعدادات المركزية ] =================
@@ -41,7 +35,7 @@ REFERRAL_GIFT = 0.05
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 user_states = {}
 
-# ================= [ 🌐 قاعدة البيانات والأرشفة - Supabase السحابية ] =================
+# ================= [ 🌐 قاعدة البيانات والأرشفة - Supabase ] =================
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
@@ -52,7 +46,6 @@ else:
     supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-# --- 🏦 الدوال السحابية لبوت دراجون ---
 def get_balance(uid):
     if not supabase_client:
         return 0.0
@@ -84,7 +77,7 @@ def update_balance(uid, amt):
         supabase_client.table("users_dragon").update({"balance": new_balance}).eq(
             "uid", int(uid)
         ).execute()
-        logging.info(f"✅ تم تحديث الرصيد في السحاب للمستخدم {uid} إلى {new_balance}")
+        logging.info(f"✅ تم تحديث الرصيد للمستخدم {uid} إلى {new_balance}")
     except Exception as e:
         logging.error(f"Error in update_balance: {e}")
 
@@ -127,8 +120,8 @@ def get_memory():
         return []
 
 
-# دالة مساعدة معزولة لإرسال رسائل التحديثات والتقارير بأمان
 def safe_send(uid, text):
+
     def run():
         try:
             bot.send_message(uid, text, parse_mode="Markdown")
@@ -138,59 +131,130 @@ def safe_send(uid, text):
     threading.Thread(target=run).start()
 
 
-# ================= [ 🚀 محرك الرادار المطور الأقوى V74 - مضاد السحب المستحيل ] =================
+# ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
-    bot.send_message(uid, "🚀 تفعيل رادار سهم... جاري اختراق المصدر.")
+    bot.send_message(
+        uid, "🚀 **تم تفعيل الرادار بنجاح!**\nجاري تجميع الضحايا وفحص الحسابات..."
+    )
+
+    # 1. جلب البيانات الحالية مرة واحدة لتخفيف الضغط على السيرفر
+    added_list = get_memory()
+    current_balance = get_balance(uid)
+
+    if current_balance < PRICE_PER_MEMBER:
+        bot.send_message(uid, "❌ رصيدك غير كافي لبدء العملية.")
+        return
+
+    # 2. استخراج قائمة مستهدفة موحدة من الأعضاء المتفاعلين لتفادي تكرار الحظر
+    targets = []
+    collector_scout = army[0]  # الحساب الأول يتولى مهمة كشف الجواسيس فقط
+    client_scout = TelegramClient(
+        collector_scout.replace(".session", ""), MY_API_ID, MY_API_HASH
+    )
+
+    try:
+        await client_scout.connect()
+        if await client_scout.is_user_authorized():
+            async for m in client_scout.iter_messages(src, limit=3000):
+                if len(targets) >= total * 2:  # جمع ضعف العدد لضمان التصفية
+                    break
+                if m.sender_id and str(m.sender_id) not in added_list:
+                    try:
+                        u = await m.get_sender()
+                        if isinstance(u, tl_types.User) and not u.bot:
+                            if u.id not in [x.id for x in targets]:
+                                targets.append(u)
+                    except:
+                        continue
+        await client_scout.disconnect()
+    except Exception as e:
+        bot.send_message(uid, f"⚠️ خطأ أثناء تجميع الأعضاء من المصدر: {e}")
+
+    if not targets:
+        bot.send_message(
+            uid, "❌ لم يتم العثور على أعضاء متاحين للنقل أو المصدر محمي."
+        )
+        return
+
+    bot.send_message(
+        uid, f"🎯 تم تجميع `{len(targets)}` عضو متفاعل. جاري البدء في النقل..."
+    )
+
+    # 3. توزيع المهام على جيش الحسابات بالتناوب لمنع الحظر والتوقف
+    target_index = 0
     for session_file in army:
-        if success >= total or get_balance(uid) < PRICE_PER_MEMBER:
+        if success >= total or target_index >= len(targets):
             break
-        added_list = get_memory()
+
         client = TelegramClient(
             session_file.replace(".session", ""), MY_API_ID, MY_API_HASH
         )
         try:
             await client.connect()
             if not await client.is_user_authorized():
+                await client.disconnect()
                 continue
-            targets = []
-            async for m in client.iter_messages(src, limit=5000):
-                if len(targets) >= 100:
+
+            # انضمام الحساب للمجموعة المستهدفة أولاً إذا تطلب الأمر
+            try:
+                await client(JoinChannelRequest(trg))
+            except:
+                pass
+
+            account_adds = 0
+            while account_adds < 15 and success < total and target_index < len(targets):
+                # فحص الرصيد محلياً
+                if (success * PRICE_PER_MEMBER) >= current_balance:
+                    bot.send_message(uid, "🛑 توقفت العملية بسبب نفاد الرصيد.")
                     break
-                if m.sender_id and str(m.sender_id) not in added_list:
-                    u = await m.get_sender()
-                    if isinstance(u, tl_types.User) and not u.bot:
-                        if u.id not in [x.id for x in targets]:
-                            targets.append(u)
-            count = 0
-            for t in targets:
-                if (
-                    success >= total
-                    or count >= 40
-                    or get_balance(uid) < PRICE_PER_MEMBER
-                ):
-                    break
+
+                current_target = targets[target_index]
+                target_index += 1
+
                 try:
-                    await client(InviteToChannelRequest(trg, [t]))
-                    save_user_memory(t.id)
+                    await client(InviteToChannelRequest(trg, [current_target]))
+                    save_user_memory(current_target.id)
                     update_balance(uid, -PRICE_PER_MEMBER)
+
                     success += 1
-                    count += 1
+                    account_adds += 1
+
                     bot.send_message(
-                        uid, f"➕ [{session_file}] أضاف:\n\n{t.first_name}\n\n"
+                        uid,
+                        f"➕ الحساب `[{session_file.split('_')[-1].replace('.session','')}]` أضاف بنجاح:\n👤 {current_target.first_name}",
                     )
-                    await asyncio.sleep(random.randint(30, 60))
-                except errors.FloodWaitError:
+                    # وقت انتظار آمن بين كل إضافة لمنع تعليق الحساب
+                    await asyncio.sleep(random.randint(35, 65))
+
+                except errors.FloodWaitError as e:
+                    bot.send_message(
+                        uid,
+                        f"⏳ الحساب الحالي واجه حظر مؤقت لـ {e.seconds} ثانية، يتم الانتقال للحساب التالي...",
+                    )
                     break
-                except:
+                except errors.UserPrivacyRestrictedError:
+                    # المستخدم مفعل الخصوصية، نتخطاه فوراً دون تجميد
                     continue
+                except Exception:
+                    continue
+
             await client.disconnect()
-        except:
+        except Exception:
             continue
+
     bot.send_message(
         uid,
-        f"🏁 اكتملت المهمة!\n✅ الإضافة:\n\n{success}\n\n\n💰 المتبقي:\n\n{get_balance(uid)}$\n\n",
+        f"🏁 **اكتملت المهمة بنجاح!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الحالي: `{get_balance(uid)}`$",
     )
+
+
+# دالة الوسيط لتشغيل الـ Async Loop داخل الـ Thread بشكل صحيح وآمن
+def launch_radar_safely(army, src, trg, total, uid):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_sahm_v73(army, src, trg, total, uid))
+    loop.close()
 
 
 # ================= [ 🎫 الأوامر الأساسية ولوحة التحكم ] =================
@@ -246,12 +310,9 @@ def payment_menu(m):
     )
 
 
-# -------------- [ قسم الشحن الآلي Oxapay ] --------------
 @bot.callback_query_handler(func=lambda c: c.data == "pay_oxa")
 def oxa_call(c):
-    msg = bot.send_message(
-        c.message.chat.id, "💵 **أدخل القيمة المطلوبة بالدولار ($):**"
-    )
+    msg = bot.send_message(c.message.chat.id, "💵 **أدخل القيمة المطلوبة بالدولار ($):**")
     bot.register_next_step_handler(msg, process_oxa)
 
 
@@ -275,9 +336,7 @@ def process_oxa(m):
 
         if pay_url:
             markup = types.InlineKeyboardMarkup()
-            markup.add(
-                types.InlineKeyboardButton("💳 اضغط هنا للدفع الآمن", url=pay_url)
-            )
+            markup.add(types.InlineKeyboardButton("💳 اضغط هنا للدفع الآمن", url=pay_url))
             bot.send_message(
                 m.chat.id,
                 f"⏳ جاري تجهيز فاتورة بقيمة {amt}$ (دفع تلقائي):\n🔗 سيتم فحص دفعك دورياً بمجرد إرسال الدفع.",
@@ -315,7 +374,6 @@ def auto_check_payment(chat_id, track_id, amount):
             continue
 
 
-# -------------- [ قسم الشحن اليدوي (الإيداع) ] --------------
 @bot.callback_query_handler(func=lambda c: c.data == "pay_man")
 def man_call(c):
     user_states[c.message.chat.id] = "waiting_receipt"
@@ -349,7 +407,6 @@ def handle_receipt(m):
 def admin_confirm(c):
     try:
         _, amt, uid = c.data.split("_")
-        # تم تصحيح شحن سوباباس وتحديث رصيد المشترك الفعلي بنجاح
         update_balance(int(uid), float(amt))
         bot.send_message(
             int(uid), f"🎉 **مبارك!** تم قبول إيصالك وشحن رصيدك بمبلغ {amt}$ بنجاح."
@@ -509,21 +566,9 @@ def finalize_delete(c):
 
 
 # =====================================================================
-# 🚀 محرك تشغيل السحب المطور - مدموج بالكامل ومضاد للتجمد الصامت
+# 🚀 تعديل التوجيه والتحكم في زر البدء (تم تصحيح تداخل الـ Thread)
 # =====================================================================
-def start_radar_thread(army, src, trg, num, uid):
-    try:
-        import asyncio
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(run_dragon_force_v74(army, src, trg, num, uid))
-        loop.close()
-    except Exception as e:
-        print(f"❌ خطأ في ثريد الرادار: {e}", flush=True)
-
-
-@bot.message_handler(func=lambda m: m.text == "⚔️ بدء الأضافه")
+@bot.message_handler(func=lambda m: m.text == "🚀 بدء السحب")
 def start_attack_cmd(m):
     if get_balance(m.chat.id) < PRICE_PER_MEMBER:
         return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
@@ -534,23 +579,37 @@ def start_attack_cmd(m):
     ]
     if not army:
         return bot.send_message(m.chat.id, "❌ أضف حسابات أولاً.")
-    msg = bot.send_message(m.chat.id, "📡 يوزر المصدر (بدون @):")
-    bot.register_next_step_handler(
-        msg,
-        lambda s: bot.register_next_step_handler(
-            bot.send_message(m.chat.id, "🎯 يوزر مجموعتك (بدون @):"),
-            lambda t: bot.register_next_step_handler(
-                bot.send_message(m.chat.id, "🔢 العدد المطلوب:"),
-                lambda n: threading.Thread(
-                    target=lambda: asyncio.run(
-                        run_sahm_v73(army, s.text, t.text, int(n.text), m.chat.id)
-                    )
-                ).start(),
-            ),
-        ),
-    )  # -------------- [ قسم حسابي ومعلومات المستثمر ] --------------
+
+    msg = bot.send_message(m.chat.id, "📡 **أدخل يوزر المصدر (بدون @):**")
+    bot.register_next_step_handler(msg, get_source_user, army)
 
 
+def get_source_user(m, army):
+    source = m.text.strip()
+    msg = bot.send_message(m.chat.id, "🎯 **أدخل يوزر مجموعتك للـنقل إليها (بدون @):**")
+    bot.register_next_step_handler(msg, get_target_group, army, source)
+
+
+def get_target_group(m, army, source):
+    target = m.text.strip()
+    msg = bot.send_message(m.chat.id, "🔢 **أدخل العدد الإجمالي المطلوب نقله:**")
+    bot.register_next_step_handler(msg, start_radar_execution, army, source, target)
+
+
+def start_radar_execution(m, army, source, target):
+    try:
+        total_needed = int(m.text.strip())
+        # تشغيل السكربت عبر بيئة معزولة ونظيفة تمنع تعليق البوت الأساسي
+        threading.Thread(
+            target=launch_radar_safely,
+            args=(army, source, target, total_needed, m.chat.id),
+            daemon=True,
+        ).start()
+    except ValueError:
+        bot.send_message(m.chat.id, "⚠️ خطأ: يرجى إدخال أرقام فقط للعدد المطلوب.")
+
+
+# -------------- [ قسم حسابي ومعلومات المستثمر ] --------------
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def info(m):
     bal = get_balance(m.chat.id)
@@ -583,6 +642,5 @@ def run_server():
 
 if __name__ == "__main__":
     print("🛰️ جاري تشغيل دراغون V73 ينطلق بنجاح الآن..")
-    # تشغيل خادم الويب بدون تجميد المنفذ أو البوت
     threading.Thread(target=run_server, daemon=True).start()
     bot.infinity_polling(timeout=60, long_polling_timeout=60)

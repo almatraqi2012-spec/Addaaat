@@ -129,6 +129,7 @@ def safe_send(uid, text):
             bot.send_message(uid, text, parse_mode="Markdown")
         except:
             pass
+
     threading.Thread(target=run).start()
 
 
@@ -620,7 +621,7 @@ def start_radar_execution(m, army, source, target):
     try:
         total_needed = int(m.text.strip())
         bot.send_message(m.chat.id, "⏳ جاري تحضير المحرك وإطلاق الحسابات...")
-        
+
         # تشغيل السكربت عبر بيئة معزولة ونظيفة تمنع تعليق البوت الأساسي
         threading.Thread(
             target=launch_radar_safely,

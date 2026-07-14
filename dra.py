@@ -124,13 +124,11 @@ def get_memory():
 
 
 def safe_send(uid, text):
-
     def run():
         try:
             bot.send_message(uid, text, parse_mode="Markdown")
         except:
             pass
-
     threading.Thread(target=run).start()
 
 
@@ -252,10 +250,13 @@ async def run_sahm_v73(army, src, trg, total, uid):
 
 # دالة الوسيط لتشغيل الـ Async Loop داخل الـ Thread بشكل صحيح وآمن
 def launch_radar_safely(army, src, trg, total, uid):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(run_sahm_v73(army, src, trg, total, uid))
-    loop.close()
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(run_sahm_v73(army, src, trg, total, uid))
+        loop.close()
+    except Exception as e:
+        safe_send(uid, f"❌ حدث خلل أثناء معالجة عملية الإضافة: {str(e)}")
 
 
 # ================= [ 🎫 الأوامر الأساسية ولوحة التحكم ] =================
@@ -433,6 +434,8 @@ def add_acc_start(m):
 
 
 def process_phone(m):
+    if not m.text:
+        return
     ph = m.text.strip().replace("+", "").replace(" ", "")
     if not ph.isdigit():
         return bot.send_message(m.chat.id, "⚠️ الرقم غير صحيح.")
@@ -465,6 +468,8 @@ def process_phone(m):
 
 
 def process_code(m, ph, h, sess):
+    if not m.text:
+        return
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)
@@ -496,6 +501,8 @@ def process_code(m, ph, h, sess):
 
 
 def process_password(m, sess, ph):
+    if not m.text:
+        return
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)
@@ -571,9 +578,9 @@ def finalize_delete(c):
 
 
 # =====================================================================
-# 🚀 تعديل التوجيه والتحكم في زر البدء (تم تصحيح تداخل الـ Thread)
+# 🚀 تعديل التوجيه والتحكم في زر البدء (تم تصحيح المدخلات والـ Threads)
 # =====================================================================
-@bot.message_handler(func=lambda m: m.text == "🚀 بدء السحب")
+@bot.message_handler(func=lambda m: m.text in ["🚀 بدء السحب", "⚔️ بدء الأضافه"])
 def start_attack_cmd(m):
     if get_balance(m.chat.id) < PRICE_PER_MEMBER:
         return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
@@ -590,20 +597,30 @@ def start_attack_cmd(m):
 
 
 def get_source_user(m, army):
-    source = m.text.strip()
+    if not m.text:
+        return
+    # تنظيف المدخلات تلقائياً من الروابط ورموز الـ @
+    source = m.text.strip().replace("@", "").split("/")[-1]
     msg = bot.send_message(m.chat.id, "🎯 **أدخل يوزر مجموعتك للـنقل إليها (بدون @):**")
     bot.register_next_step_handler(msg, get_target_group, army, source)
 
 
 def get_target_group(m, army, source):
-    target = m.text.strip()
+    if not m.text:
+        return
+    # تنظيف الرابط تلقائياً وتحويله لاسم مستخدم نقي قابل للإضافة
+    target = m.text.strip().replace("@", "").split("/")[-1]
     msg = bot.send_message(m.chat.id, "🔢 **أدخل العدد الإجمالي المطلوب نقله:**")
     bot.register_next_step_handler(msg, start_radar_execution, army, source, target)
 
 
 def start_radar_execution(m, army, source, target):
+    if not m.text:
+        return
     try:
         total_needed = int(m.text.strip())
+        bot.send_message(m.chat.id, "⏳ جاري تحضير المحرك وإطلاق الحسابات...")
+        
         # تشغيل السكربت عبر بيئة معزولة ونظيفة تمنع تعليق البوت الأساسي
         threading.Thread(
             target=launch_radar_safely,

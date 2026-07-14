@@ -31,4 +31,4 @@ jobs:
       - name: Run addaaat Bot
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }} 
-        run: python dry.py
+        run: python dra.py # تم تصحيح اسم الملف هنا إلى dra.py

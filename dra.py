@@ -19,7 +19,10 @@ from supabase import create_client, Client
 from telethon import TelegramClient, errors, functions
 from telethon import types as tl_types
 from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRequest
-from telethon.tl.functions.messages import GetHistoryRequest, GetMessagesReactionsRequest
+from telethon.tl.functions.messages import (
+    GetHistoryRequest,
+    GetMessagesReactionsRequest,
+)
 from telethon.tl.functions.users import GetFullUserRequest
 
 # ================= [ ⚙️ الإعدادات المركزية ] =================
@@ -172,9 +175,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
         bot.send_message(uid, f"⚠️ خطأ أثناء تجميع الأعضاء من المصدر: {e}")
 
     if not targets:
-        bot.send_message(
-            uid, "❌ لم يتم العثور على أعضاء متاحين للنقل أو المصدر محمي."
-        )
+        bot.send_message(uid, "❌ لم يتم العثور على أعضاء متاحين للنقل أو المصدر محمي.")
         return
 
     bot.send_message(
@@ -312,7 +313,9 @@ def payment_menu(m):
 
 @bot.callback_query_handler(func=lambda c: c.data == "pay_oxa")
 def oxa_call(c):
-    msg = bot.send_message(c.message.chat.id, "💵 **أدخل القيمة المطلوبة بالدولار ($):**")
+    msg = bot.send_message(
+        c.message.chat.id, "💵 **أدخل القيمة المطلوبة بالدولار ($):**"
+    )
     bot.register_next_step_handler(msg, process_oxa)
 
 
@@ -336,7 +339,9 @@ def process_oxa(m):
 
         if pay_url:
             markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("💳 اضغط هنا للدفع الآمن", url=pay_url))
+            markup.add(
+                types.InlineKeyboardButton("💳 اضغط هنا للدفع الآمن", url=pay_url)
+            )
             bot.send_message(
                 m.chat.id,
                 f"⏳ جاري تجهيز فاتورة بقيمة {amt}$ (دفع تلقائي):\n🔗 سيتم فحص دفعك دورياً بمجرد إرسال الدفع.",

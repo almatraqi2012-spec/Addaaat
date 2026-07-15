@@ -52,19 +52,22 @@ def get_balance(user_id):
     if not supabase_client:
         return 0.0
     try:
-        # البحث بناءً على العمود 'id' أو 'username'
-        # تأكد من استبدال 'id' بـ 'username' إذا كنت تربط بالاسم
-        response = (
-            supabase_client.table("users")
-            .select("balance")
-            .eq("id", int(user_id)) 
-            .execute()
-        )
+        # طباعة الرقم الذي يبحث عنه الكود
+        print(f"DEBUG: Checking balance for user_id: {user_id}")
+        
+        response = supabase_client.table("users").select("balance").eq("id", int(user_id)).execute()
+        
+        # طباعة النتيجة التي عادت من القاعدة
+        print(f"DEBUG: Database response: {response.data}")
+        
         if response.data and len(response.data) > 0:
             return round(float(response.data[0]["balance"]), 3)
+        
+        # --- إذا وصلنا هنا، يعني أن المستخدم غير موجود في القاعدة ---
+        print(f"DEBUG: User {user_id} not found in table 'users'.")
         return 0.0
     except Exception as e:
-        logging.error(f"Error in get_balance: {e}")
+        print(f"DEBUG: Error: {e}")
         return 0.0
 
 def update_balance(user_id, amt):

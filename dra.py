@@ -52,10 +52,12 @@ def get_balance(user_id):
     if not supabase_client:
         return 0.0
     try:
+        # البحث بناءً على العمود 'id' أو 'username'
+        # تأكد من استبدال 'id' بـ 'username' إذا كنت تربط بالاسم
         response = (
             supabase_client.table("users")
             .select("balance")
-            .eq("user_id", int(user_id))
+            .eq("id", int(user_id)) 
             .execute()
         )
         if response.data and len(response.data) > 0:
@@ -72,12 +74,12 @@ def update_balance(user_id, amt):
         current_balance = get_balance(user_id)
         new_balance = round(current_balance + float(amt), 3)
         supabase_client.table("users").update({"balance": new_balance}).eq(
-            "user_id", int(user_id)
+            "id", int(user_id)
         ).execute()
         logging.info(f"✅ تم تحديث الرصيد للمستخدم {user_id} إلى {new_balance}")
     except Exception as e:
         logging.error(f"Error in update_balance: {e}")
-
+        
 def save_account_db(user_id, session_string):
     if not supabase_client:
         return

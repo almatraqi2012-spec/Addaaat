@@ -645,17 +645,16 @@ def run_server():
     app_web.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
 
 if __name__ == "__main__":
-    print("🛰️ جاري تشغيل دراغون V73 ينطلق بنجاح الآن..")
+    print("🛰️ جاري تشغيل دراغون V73..")
     
-    # 1. تشغيل السيرفر في الخلفية
+    # تشغيل السيرفر
     threading.Thread(target=run_server, daemon=True).start()
     
-    # 2. تنظيف تليجرام من أي اتصالات معلقة قبل البدء (حل لخطأ 409)
+    # تنظيف تليجرام (مهم جداً لحل خطأ 409)
     try:
         bot.remove_webhook()
     except:
         pass
         
-    # 3. بدء البوت
-    print("🚀 جاري الاتصال بتليجرام...")
+    # بدء البوت
     bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)

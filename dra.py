@@ -48,80 +48,60 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 else:
     supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
-def get_balance(uid):
+def get_balance(user_id):
     if not supabase_client:
         return 0.0
     try:
         response = (
-            supabase_client.table("users_dragon")
+            supabase_client.table("users")
             .select("balance")
-            .eq("uid", int(uid))
+            .eq("user_id", int(user_id))
             .execute()
         )
         if response.data and len(response.data) > 0:
             return round(float(response.data[0]["balance"]), 3)
-        else:
-            supabase_client.table("users_dragon").insert(
-                {"uid": int(uid), "balance": 0.0}
-            ).execute()
-            return 0.0
+        return 0.0
     except Exception as e:
         logging.error(f"Error in get_balance: {e}")
         return 0.0
 
-
-def update_balance(uid, amt):
+def update_balance(user_id, amt):
     if not supabase_client:
         return
     try:
-        current_balance = get_balance(uid)
+        current_balance = get_balance(user_id)
         new_balance = round(current_balance + float(amt), 3)
-        supabase_client.table("users_dragon").update({"balance": new_balance}).eq(
-            "uid", int(uid)
+        supabase_client.table("users").update({"balance": new_balance}).eq(
+            "user_id", int(user_id)
         ).execute()
-        logging.info(f"✅ تم تحديث الرصيد للمستخدم {uid} إلى {new_balance}")
+        logging.info(f"✅ تم تحديث الرصيد للمستخدم {user_id} إلى {new_balance}")
     except Exception as e:
         logging.error(f"Error in update_balance: {e}")
 
-
-def save_account_db(user_id, session_name, phone):
+def save_account_db(user_id, session_string):
     if not supabase_client:
         return
     try:
-        supabase_client.table("accounts_dragon").upsert(
+        supabase_client.table("telegram_accounts").upsert(
             {
-                "session_name": str(session_name),
                 "user_id": int(user_id),
-                "phone": str(phone),
-                "status": "active",
+                "session_string": str(session_string),
+                "status": "active"
             }
         ).execute()
     except Exception as e:
         logging.error(f"Error in save_account_db: {e}")
 
-
-def save_user_memory(user_id):
-    if not supabase_client:
-        return
-    try:
-        supabase_client.table("memory_dragon").upsert(
-            {"target_id": str(user_id)}
-        ).execute()
-    except Exception as e:
-        logging.error(f"Error in save_user_memory: {e}")
-
-
 def get_memory():
     if not supabase_client:
         return []
     try:
+        # ملاحظة: إذا كان جدول الذاكرة لا يزال يحمل اسم memory_dragon احتفظ به كما هو
         response = supabase_client.table("memory_dragon").select("target_id").execute()
         return [row["target_id"] for row in response.data] if response.data else []
     except Exception as e:
         logging.error(f"Error in get_memory: {e}")
         return []
-
 
 def safe_send(uid, text):
     def run():
@@ -129,10 +109,8 @@ def safe_send(uid, text):
             bot.send_message(uid, text, parse_mode="Markdown")
         except:
             pass
-
+    import threading
     threading.Thread(target=run).start()
-
-
 # ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0

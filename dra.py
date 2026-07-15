@@ -632,18 +632,27 @@ def info(m):
 # ================= [ 🌐 خادم ويب مصغر لإبقاء البوت حياً ] =================
 app_web = Flask(__name__)
 
-
 @app_web.route("/")
 def health_check():
     return "Dragon V73 Pro is Running Safely!", 200
 
-
 def run_server():
     PORT = int(os.environ.get("PORT", 10000))
+    # use_reloader=False ضروري جداً لمنع تشغيل السيرفر مرتين
     app_web.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
-
 
 if __name__ == "__main__":
     print("🛰️ جاري تشغيل دراغون V73 ينطلق بنجاح الآن..")
+    
+    # 1. تشغيل السيرفر في الخلفية
     threading.Thread(target=run_server, daemon=True).start()
-    bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    
+    # 2. تنظيف تليجرام من أي اتصالات معلقة قبل البدء (حل لخطأ 409)
+    try:
+        bot.remove_webhook()
+    except:
+        pass
+        
+    # 3. بدء البوت
+    print("🚀 جاري الاتصال بتليجرام...")
+    bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)

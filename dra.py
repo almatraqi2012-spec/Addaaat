@@ -27,7 +27,7 @@ from telethon.tl.functions.users import GetFullUserRequest
 
 # ================= [ ⚙️ الإعدادات المركزية ] =================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-MY_API_ID = 21349687
+MY_API_ID = 21349867
 MY_API_HASH = "7ced3ee4c80117bd5138410811b91f9f"
 ADMIN_ID = 6016547718
 OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU"

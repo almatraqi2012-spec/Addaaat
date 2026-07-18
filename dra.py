@@ -498,8 +498,10 @@ def process_code(m, ph, h, sess):
     async def sign():
         await cl.connect()
         try:
+            # تسجيل الدخول باستخدام الكود المرسل من المستخدم
             await cl.sign_in(ph, m.text, phone_code_hash=h)
-            # استخراج كود الجلسة المشفر الحقيقي فوراً أثناء الاتصال
+            
+            # 🔥 السطر الذهبي: استخراج نص الجلسة المشفر الحقيقي فوراً أثناء الاتصال
             pure_string = cl.session.save()
             return "OK", pure_string
         except errors.SessionPasswordNeededError:
@@ -512,8 +514,8 @@ def process_code(m, ph, h, sess):
     try:
         res, session_str = loop.run_until_complete(sign())
         if res == "OK":
-            bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
-            # تمرير كود الجلسة المشفر الطويل لقاعدة البيانات
+            bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة السحابية!**")
+            # تمرير كود الجلسة المشفر الطويل (session_str) بدلاً من اسم الملف القديم
             save_account_db(m.chat.id, session_str)
         elif res == "2FA":
             msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين:**")
@@ -522,6 +524,7 @@ def process_code(m, ph, h, sess):
             bot.send_message(m.chat.id, f"❌ {res}")
     except Exception as e:
         print(f"DEBUG Error in process_code: {e}")
+        bot.send_message(m.chat.id, f"⚠️ حدث خطأ أثناء الربط: {e}")
     finally:
         loop.close()
 

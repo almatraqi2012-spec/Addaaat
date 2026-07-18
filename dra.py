@@ -52,22 +52,22 @@ def get_balance(user_id):
     if not supabase_client:
         return 0.0
     try:
-        # طباعة الرقم الذي يبحث عنه الكود
+        # البحث باستخدام str لضمان المطابقة مع نص أو رقم في القاعدة
         print(f"DEBUG: Checking balance for user_id: {user_id}")
         
-        response = supabase_client.table("users").select("balance").eq("id", int(user_id)).execute()
+        response = supabase_client.table("users").select("balance").eq("id", str(user_id)).execute()
         
-        # طباعة النتيجة التي عادت من القاعدة
         print(f"DEBUG: Database response: {response.data}")
         
         if response.data and len(response.data) > 0:
             return round(float(response.data[0]["balance"]), 3)
         
-        # --- إذا وصلنا هنا، يعني أن المستخدم غير موجود في القاعدة ---
-        print(f"DEBUG: User {user_id} not found in table 'users'.")
+        # إذا لم يكن موجوداً، ننشئه برصيد صفر لكي تنجح عمليات التحديث لاحقاً
+        print(f"DEBUG: User {user_id} not found. Creating fresh profile...")
+        supabase_client.table("users").upsert({"id": str(user_id), "balance": 0.0}).execute()
         return 0.0
     except Exception as e:
-        print(f"DEBUG: Error: {e}")
+        print(f"DEBUG: Error in get_balance: {e}")
         return 0.0
 
 def update_balance(user_id, amt):
@@ -76,9 +76,9 @@ def update_balance(user_id, amt):
     try:
         current_balance = get_balance(user_id)
         new_balance = round(current_balance + float(amt), 3)
-        supabase_client.table("users").update({"balance": new_balance}).eq(
-            "id", int(user_id)
-        ).execute()
+        
+        # استخدام upsert بدلاً من update لضمان الكتابة حتى لو كان المستخدم جديداً
+        supabase_client.table("users").upsert({"id": str(user_id), "balance": new_balance}).execute()
         logging.info(f"✅ تم تحديث الرصيد للمستخدم {user_id} إلى {new_balance}")
     except Exception as e:
         logging.error(f"Error in update_balance: {e}")
@@ -87,13 +87,15 @@ def save_account_db(user_id, session_string):
     if not supabase_client:
         return
     try:
+        # حفظ كـ str لمنع مشاكل أنواع البيانات الرقمية الطويلة
         supabase_client.table("telegram_accounts").upsert(
             {
-                "user_id": int(user_id),
+                "user_id": str(user_id),
                 "session_string": str(session_string),
                 "status": "active"
             }
         ).execute()
+        logging.info(f"✅ تم حفظ الحساب بنجاح في السوبابيس للمستخدم {user_id}")
     except Exception as e:
         logging.error(f"Error in save_account_db: {e}")
 
@@ -101,7 +103,6 @@ def get_memory():
     if not supabase_client:
         return []
     try:
-        # ملاحظة: إذا كان جدول الذاكرة لا يزال يحمل اسم memory_dragon احتفظ به كما هو
         response = supabase_client.table("memory_dragon").select("target_id").execute()
         return [row["target_id"] for row in response.data] if response.data else []
     except Exception as e:

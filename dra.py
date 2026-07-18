@@ -86,7 +86,8 @@ def update_balance(user_id, amt):
         logging.error(f"Error in update_balance: {e}")
         
 # تأكد أن دالة الحفظ تستقبل الـ session_string النقي
-def save_account_db(user_id, session_string):
+# دالة الحفظ المحدثة بالكامل لاستقبال الرقم والجلسة معاً
+def save_account_db(user_id, phone_number, session_string):
     if not supabase_client:
         return
     try:
@@ -94,14 +95,14 @@ def save_account_db(user_id, session_string):
         supabase_client.table("telegram_accounts").upsert(
             {
                 "user_id": numeric_id,
-                "session_string": str(session_string), # يجب أن يكون الكود المشفر الطويل
+                "phone": str(phone_number).strip(),    # حفظ الرقم في عموده الصحيح
+                "session_string": str(session_string), # الكود المشفر الطويل
                 "status": "active"
             }
         ).execute()
         logging.info(f"✅ تم حفظ الحساب بنجاح في السوبابيس للمستخدم {numeric_id}")
     except Exception as e:
         logging.error(f"Error in save_account_db: {e}")
-
 def get_memory():
     if not supabase_client:
         return []

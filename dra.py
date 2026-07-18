@@ -553,18 +553,30 @@ def process_password(m, sess, ph):
     finally:
         loop.close()
 
-
 # ================= [ ⚙️ العرض وحذف الحسابات المتواجدة ] =================
 @bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")
 def stats_all(m):
-    army = [
-        f
-        for f in os.listdir(".")
-        if f.startswith(f"sess_{m.chat.id}_") and f.endswith(".session")
-    ]
+    # تحويل المعرف لـ int لضمان مطابقة int8 في سوبابيس
+    uid = int(m.chat.id)
+    
+    # 1. جلب الرصيد الحقيقي من القاعدة
+    bal = get_balance(uid)
+    
+    # 2. جلب إجمالي عدد حسابات المستخدم من سوبابيس بدلاً من المجلد المحلي
+    army_count = 0
+    if supabase_client:
+        try:
+            response = supabase_client.table("telegram_accounts").select("id").eq("user_id", uid).execute()
+            if response.data:
+                army_count = len(response.data)
+        except Exception as e:
+            print(f"DEBUG Error fetching stats count from db: {e}")
+
+    # 3. إرسال الإحصائيات الدقيقة
     bot.send_message(
         m.chat.id,
-        f"📊 **إحصائياتك:**\n📱 الحسابات: `{len(army)}`\n💵 الرصيد المتاح: `{get_balance(m.chat.id)}`$ ",
+        f"📊 **إحصائياتك:**\n📱 الحسابات: `{army_count}`\n💵 الرصيد المتاح: `{bal}`$ ",
+        parse_mode="Markdown"
     )
 
 
@@ -661,17 +673,27 @@ def start_radar_execution(m, army, source, target):
 # -------------- [ قسم حسابي ومعلومات المستثمر ] --------------
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")
 def info(m):
-    bal = get_balance(m.chat.id)
-    army_count = len(
-        [
-            f
-            for f in os.listdir(".")
-            if f.startswith(f"sess_{m.chat.id}_") and f.endswith(".session")
-        ]
-    )
+    # تحويل المعرف لـ int لضمان مطابقة int8 في سوبابيس
+    uid = int(m.chat.id)
+    
+    # 1. جلب الرصيد من القاعدة
+    bal = get_balance(uid)
+    
+    # 2. جلب عدد الحسابات النشطة للمستخدم مباشرة من سوبابيس
+    army_count = 0
+    if supabase_client:
+        try:
+            response = supabase_client.table("telegram_accounts").select("id").eq("user_id", uid).eq("status", "active").execute()
+            if response.data:
+                army_count = len(response.data)
+        except Exception as e:
+            print(f"DEBUG Error fetching accounts count from db: {e}")
+
+    # 3. إرسال النص المحدث
     bot.send_message(
         m.chat.id,
         f"👤 **حسابك:**\n💵 الرصيد: `{bal}$` \n📦 الحسابات النشطة: `{army_count}`",
+        parse_mode="Markdown"
     )
 
 

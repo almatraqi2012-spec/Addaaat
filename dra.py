@@ -640,7 +640,13 @@ def start_attack_cmd(m):
         try:
             res = supabase_client.table("telegram_accounts").select("session_string").eq("user_id", uid).eq("status", "active").execute()
             if res.data:
-                army = [row["session_string"] for row in res.data]
+                for row in res.data:
+                    s_str = row.get("session_string")
+                    if s_str:
+                        s_str = s_str.strip()
+                        # تصفية صارمة: نتجاهل أي نص جلسة قديم يبدأ بـ sess_ لحماية المحرك
+                        if not s_str.startswith("sess_") and len(s_str) > 20:
+                            army.append(s_str)]
         except Exception as e:
             print(f"DEBUG Error fetching army from DB: {e}")
 

@@ -499,10 +499,10 @@ def process_code(m, ph, h, sess):
     async def sign():
         await cl.connect()
         try:
-            # تسجيل الدخول باستخدام الكود المرسل من المستخدم
+            # تسجيل الدخول بالكود
             await cl.sign_in(ph, m.text, phone_code_hash=h)
             
-            # 🔥 السطر الذهبي: استخراج نص الجلسة المشفر الحقيقي فوراً أثناء الاتصال
+            # 🔥 السطر الذهبي: استخراج نص الجلسة الطويل فوراً أثناء الاتصال
             pure_string = cl.session.save()
             return "OK", pure_string
         except errors.SessionPasswordNeededError:
@@ -516,7 +516,7 @@ def process_code(m, ph, h, sess):
         res, session_str = loop.run_until_complete(sign())
         if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة السحابية!**")
-            # تمرير كود الجلسة المشفر الطويل (session_str) بدلاً من اسم الملف القديم
+            # الحفظ الصحيح بالترتيب: المعرف، الرقم، ثم نص الجلسة المشفر المستخرج
             save_account_db(m.chat.id, ph, session_str)
         elif res == "2FA":
             msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين:**")
@@ -525,7 +525,6 @@ def process_code(m, ph, h, sess):
             bot.send_message(m.chat.id, f"❌ {res}")
     except Exception as e:
         print(f"DEBUG Error in process_code: {e}")
-        bot.send_message(m.chat.id, f"⚠️ حدث خطأ أثناء الربط: {e}")
     finally:
         loop.close()
 
@@ -541,7 +540,8 @@ def process_password(m, sess, ph):
         await cl.connect()
         try:
             await cl.sign_in(password=m.text)
-            # استخراج كود الجلسة المشفر الحقيقي فوراً أثناء الاتصال بعد كتابة الـ 2FA
+            
+            # 🔥 استخراج نص الجلسة الطويل بعد كتابة الـ 2FA بنجاح
             pure_string = cl.session.save()
             return "OK", pure_string
         except Exception as e:
@@ -553,7 +553,7 @@ def process_password(m, sess, ph):
         res, session_str = loop.run_until_complete(sign_p())
         if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
-            # تمرير كود الجلسة المشفر الطويل هنا أيضاً لقاعدة البيانات
+            # الحفظ بالترتيب الصحيح هنا أيضاً
             save_account_db(m.chat.id, ph, session_str)
         else:
             bot.send_message(m.chat.id, f"❌ خطأ في التحقق: {res}")

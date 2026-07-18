@@ -517,12 +517,15 @@ def process_code(m, ph, h, sess):
         res = loop.run_until_complete(sign())
         if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
-            save_account_db(m.chat.id, sess, ph)
+            # التعديل هنا: تمرير المعرف والـ session فقط ليطابق الدالة
+            save_account_db(m.chat.id, sess)
         elif res == "2FA":
             msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين:**")
             bot.register_next_step_handler(msg, process_password, sess, ph)
         else:
             bot.send_message(m.chat.id, f"❌ {res}")
+    except Exception as e:
+        print(f"DEBUG Error in process_code: {e}")
     finally:
         loop.close()
 
@@ -547,9 +550,12 @@ def process_password(m, sess, ph):
     try:
         if loop.run_until_complete(sign_p()) == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
-            save_account_db(m.chat.id, sess, ph)
+            # التعديل هنا أيضاً: تمرير المعرف والـ session فقط
+            save_account_db(m.chat.id, sess)
         else:
             bot.send_message(m.chat.id, "❌ خطأ في رمز التحقق بخطوتين.")
+    except Exception as e:
+        print(f"DEBUG Error in process_password: {e}")
     finally:
         loop.close()
 

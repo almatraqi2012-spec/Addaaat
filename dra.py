@@ -487,10 +487,10 @@ def process_code(m, ph, h, sess):
     async def sign():
         await cl.connect()
         try:
-            # تسجيل الدخول بالكود
+            # تسجيل الدخول بالكود المرسل
             await cl.sign_in(ph, m.text, phone_code_hash=h)
             
-            # 🔥 السطر الذهبي: استخراج نص الجلسة الطويل فوراً أثناء الاتصال
+            # 🔥 استخراج نص الجلسة الحقيقي الطويل فوراً
             pure_string = cl.session.save()
             return "OK", pure_string
         except errors.SessionPasswordNeededError:
@@ -504,10 +504,10 @@ def process_code(m, ph, h, sess):
         res, session_str = loop.run_until_complete(sign())
         if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة السحابية!**")
-            # الحفظ الصحيح بالترتيب: المعرف، الرقم، ثم نص الجلسة المشفر المستخرج
+            # 🔥 تمرير الـ session_str المستخرج هنا بشكل صحيح تماماً
             save_account_db(m.chat.id, ph, session_str)
         elif res == "2FA":
-            msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين:**")
+            msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين (الـ Password):**")
             bot.register_next_step_handler(msg, process_password, sess, ph)
         else:
             bot.send_message(m.chat.id, f"❌ {res}")
@@ -540,11 +540,11 @@ def process_password(m, sess, ph):
     try:
         res, session_str = loop.run_until_complete(sign_p())
         if res == "OK":
-            bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
-            # الحفظ بالترتيب الصحيح هنا أيضاً
+            bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة بعد الـ 2FA!**")
+            # 🔥 تمرير المتغير الصحيح هنا أيضاً
             save_account_db(m.chat.id, ph, session_str)
         else:
-            bot.send_message(m.chat.id, f"❌ خطأ في التحقق: {res}")
+            bot.send_message(m.chat.id, f"❌ خطأ في التحقق من كلمة السر: {res}")
     except Exception as e:
         print(f"DEBUG Error in process_password: {e}")
     finally:

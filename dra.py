@@ -85,16 +85,16 @@ def update_balance(user_id, amt):
     except Exception as e:
         logging.error(f"Error in update_balance: {e}")
         
+# تأكد أن دالة الحفظ تستقبل الـ session_string النقي
 def save_account_db(user_id, session_string):
     if not supabase_client:
         return
     try:
         numeric_id = int(user_id)
-        # تأكد أيضاً أن حقل user_id في جدول telegram_accounts هو int8 أو رقم
         supabase_client.table("telegram_accounts").upsert(
             {
                 "user_id": numeric_id,
-                "session_string": str(session_string),
+                "session_string": str(session_string), # يجب أن يكون الكود المشفر الطويل
                 "status": "active"
             }
         ).execute()
@@ -431,6 +431,7 @@ def admin_confirm(c):
 
 
 # ================= [ ⚙️ تشغيل وربط الحسابات ] =================
+# ================= [ ⚙️ تشغيل وربط الحسابات المحدث بالسوبابيس ] =================
 @bot.message_handler(func=lambda m: m.text == "➡️ إضافة حساب للتليجرام")
 def add_acc_start(m):
     msg = bot.send_message(m.chat.id, "📱 **أرسل رقم الهاتف مع مفتاح الدولة:**")
@@ -482,20 +483,22 @@ def process_code(m, ph, h, sess):
         await cl.connect()
         try:
             await cl.sign_in(ph, m.text, phone_code_hash=h)
-            return "OK"
+            # استخراج كود الجلسة المشفر الحقيقي فوراً أثناء الاتصال
+            pure_string = cl.session.save()
+            return "OK", pure_string
         except errors.SessionPasswordNeededError:
-            return "2FA"
+            return "2FA", None
         except Exception as e:
-            return str(e)
+            return str(e), None
         finally:
             await cl.disconnect()
 
     try:
-        res = loop.run_until_complete(sign())
+        res, session_str = loop.run_until_complete(sign())
         if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
-            # التعديل هنا: تمرير المعرف والـ session فقط ليطابق الدالة
-            save_account_db(m.chat.id, sess)
+            # تمرير كود الجلسة المشفر الطويل لقاعدة البيانات
+            save_account_db(m.chat.id, session_str)
         elif res == "2FA":
             msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين:**")
             bot.register_next_step_handler(msg, process_password, sess, ph)
@@ -518,24 +521,26 @@ def process_password(m, sess, ph):
         await cl.connect()
         try:
             await cl.sign_in(password=m.text)
-            return "OK"
+            # استخراج كود الجلسة المشفر الحقيقي فوراً أثناء الاتصال بعد كتابة الـ 2FA
+            pure_string = cl.session.save()
+            return "OK", pure_string
         except Exception as e:
-            return str(e)
+            return str(e), None
         finally:
             await cl.disconnect()
 
     try:
-        if loop.run_until_complete(sign_p()) == "OK":
+        res, session_str = loop.run_until_complete(sign_p())
+        if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
-            # التعديل هنا أيضاً: تمرير المعرف والـ session فقط
-            save_account_db(m.chat.id, sess)
+            # تمرير كود الجلسة المشفر الطويل هنا أيضاً لقاعدة البيانات
+            save_account_db(m.chat.id, session_str)
         else:
-            bot.send_message(m.chat.id, "❌ خطأ في رمز التحقق بخطوتين.")
+            bot.send_message(m.chat.id, f"❌ خطأ في التحقق: {res}")
     except Exception as e:
         print(f"DEBUG Error in process_password: {e}")
     finally:
         loop.close()
-
 # ================= [ ⚙️ العرض وحذف الحسابات المتواجدة ] =================
 @bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")
 def stats_all(m):

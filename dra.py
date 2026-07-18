@@ -600,17 +600,27 @@ def finalize_delete(c):
 
 
 # =====================================================================
-# 🚀 تعديل التوجيه والتحكم في زر البدء (تم تصحيح المدخلات والـ Threads)
+# 🚀 تعديل التوجيه والتحكم في زر البدء (تم تصحيح المدخلات والـ Threads والسوبابيس)
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text in ["🚀 بدء السحب", "⚔️ بدء الأضافه"])
 def start_attack_cmd(m):
-    if get_balance(m.chat.id) < PRICE_PER_MEMBER:
+    uid = int(m.chat.id) # حماية وتطابق int8
+    
+    # 1. التحقق من الرصيد
+    if get_balance(uid) < PRICE_PER_MEMBER:
         return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
-    army = [
-        f
-        for f in os.listdir(".")
-        if f.startswith(f"sess_{m.chat.id}_") and f.endswith(".session")
-    ]
+    
+    # 2. جلب الحسابات النشطة (session_string) من سوبابيس بدلاً من المجلد المحلي
+    army = []
+    if supabase_client:
+        try:
+            res = supabase_client.table("telegram_accounts").select("session_string").eq("user_id", uid).eq("status", "active").execute()
+            if res.data:
+                army = [row["session_string"] for row in res.data]
+        except Exception as e:
+            print(f"DEBUG Error fetching army from DB: {e}")
+
+    # 3. التحقق من وجود حسابات
     if not army:
         return bot.send_message(m.chat.id, "❌ أضف حسابات أولاً.")
 
@@ -644,6 +654,7 @@ def start_radar_execution(m, army, source, target):
         bot.send_message(m.chat.id, "⏳ جاري تحضير المحرك وإطلاق الحسابات...")
 
         # تشغيل السكربت عبر بيئة معزولة ونظيفة تمنع تعليق البوت الأساسي
+        # المتغير army هنا أصبح يحتوي على نصوص الجلسات الجاهزة للإقلاع
         threading.Thread(
             target=launch_radar_safely,
             args=(army, source, target, total_needed, m.chat.id),
@@ -651,7 +662,6 @@ def start_radar_execution(m, army, source, target):
         ).start()
     except ValueError:
         bot.send_message(m.chat.id, "⚠️ خطأ: يرجى إدخال أرقام فقط للعدد المطلوب.")
-
 
 # -------------- [ قسم حسابي ومعلومات المستثمر ] --------------
 @bot.message_handler(func=lambda m: m.text == "👤 حسابي")

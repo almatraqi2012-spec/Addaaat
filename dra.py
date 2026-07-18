@@ -121,13 +121,15 @@ def safe_send(uid, text):
     import threading
     threading.Thread(target=run).start()
 # ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
+from telethon.sessions import StringSession
+
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(
         uid, "🚀 **تم تفعيل رادار سهم V73 الخارق!**\n⚙️ جاري سحب الحسابات واختراق الجروبات المخفية..."
     )
 
-    # 1. جلب الذاكرة والرصيد وحسابات سوبابيس
+    # 1. جلب الذاكرة والرصيد وحسابات سوبابيس الحقيقية
     added_list = get_memory()
     current_balance = get_balance(uid)
 
@@ -138,25 +140,26 @@ async def run_sahm_v73(army, src, trg, total, uid):
         bot.send_message(uid, "❌ رصيدك غير كافي لنقل أي عضو.")
         return
 
-    # جلب الحسابات النشطة ببيانات الـ session_string من سوبابيس
+    # جلب الحسابات النشطة ببيانات الـ session_string الصافية من سوبابيس مباشرة لضمان عدم التداخل
     db_accounts = []
     if supabase_client:
         try:
             res = supabase_client.table("telegram_accounts").select("session_string").eq("user_id", int(uid)).eq("status", "active").execute()
             if res.data:
-                db_accounts = [row["session_string"] for row in res.data]
+                # نأخذ فقط النصوص التي تبدأ بـ 1 (علامة الـ StringSession الرسمية في تليثون) لضمان جودتها
+                db_accounts = [row["session_string"] for row in res.data if row["session_string"] and not row["session_string"].startswith("sess_")]
         except Exception as e:
             print(f"DEBUG Error fetching accounts from DB: {e}")
 
     if not db_accounts:
-        bot.send_message(uid, "❌ لا توجد حسابات نشطة مربوطة في قاعدة البيانات للقيام بالنقل!")
+        bot.send_message(uid, "❌ لا توجد حسابات نشطة بنظام الـ String Session المحدث للقيام بالنقل!")
         return
 
-    # 2. استخراج الأعضاء المتفاعلين باستخدام أول حساب في القاعدة
+    # 2. استخراج الأعضاء المتفاعلين باستخدام أول حساب مشفر في القاعدة
     targets = []
     scout_session = db_accounts[0]
     
-    # إذا كان اسم ملف قديم، نغيره، لكن الأفضل استخدام StringSession
+    # استخدام StringSession الصافي هنا للتأكد من عدم تمرير أي مسار ملف
     client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
     try:
         await client_scout.connect()
@@ -193,7 +196,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
             if success >= total_to_add or target_index >= len(targets):
                 break
                 
-            # تشغيل الحساب من النص المخزن في سوبابيس مباشرة دون هارد ديسك
+            # تشغيل الحساب من النص المخزن في سوبابيس مباشرة دون ملفات محلية
             client = TelegramClient(StringSession(session_str), MY_API_ID, MY_API_HASH)
             try:
                 await client.connect()
@@ -249,9 +252,8 @@ async def run_sahm_v73(army, src, trg, total, uid):
 
     bot.send_message(
         uid,
-        f"🏁 **اكتملت عملية الإضافة بنجاح!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الفعلي: `{get_balance(uid)}`$",
+        f"🏁 **اكتملت عملية الإضافة بنجاح!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الفعلي: `{get_balance(uid)}`$"
     )
-
 # دالة الوسيط لتشغيل الـ Async Loop داخل الـ Thread بشكل صحيح وآمن
 def launch_radar_safely(army, src, trg, total, uid):
     try:

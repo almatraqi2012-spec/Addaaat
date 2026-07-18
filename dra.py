@@ -629,35 +629,30 @@ def finalize_delete(c):
 # =====================================================================
 @bot.message_handler(func=lambda m: m.text in ["🚀 بدء السحب", "⚔️ بدء الأضافه"])
 def start_attack_cmd(m):
-    uid = int(m.chat.id) # حماية وتطابق int8
+    uid = int(m.chat.id)
     
     # 1. التحقق من الرصيد
     if get_balance(uid) < PRICE_PER_MEMBER:
         return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
     
-    # 2. جلب الحسابات النشطة (session_string) من سوبابيس بدلاً من المجلد المحلي
+    # 2. جلب الحسابات النشطة مباشرة وبشكل مرن
     army = []
     if supabase_client:
         try:
             res = supabase_client.table("telegram_accounts").select("session_string").eq("user_id", uid).eq("status", "active").execute()
             if res.data:
-                for row in res.data:
-                    s_str = row.get("session_string")
-                    if s_str:
-                        s_str = s_str.strip()
-                        # تصفية صارمة: نتجاهل أي نص جلسة قديم يبدأ بـ sess_ لحماية المحرك
-                        if not s_str.startswith("sess_") and len(s_str) > 20:
-                            army.append(s_str)
+                # نأخذ نصوص الجلسات وننظف المسافات فقط دون شروط معقدة
+                army = [row["session_string"].strip() for row in res.data if row.get("session_string")]
         except Exception as e:
             print(f"DEBUG Error fetching army from DB: {e}")
 
-    # 3. التحقق من وجود حسابات
+    # 3. التحقق من وجود حسابات في المصفوفة
     if not army:
         return bot.send_message(m.chat.id, "❌ أضف حسابات أولاً.")
 
+    # إذا نجح، ينتقل للخطوة التالية فوراً
     msg = bot.send_message(m.chat.id, "📡 **أدخل يوزر المصدر (بدون @):**")
     bot.register_next_step_handler(msg, get_source_user, army)
-
 
 def get_source_user(m, army):
     if not m.text:

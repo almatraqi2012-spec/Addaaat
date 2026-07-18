@@ -142,23 +142,11 @@ async def run_sahm_v73(army, src, trg, total, uid):
         return
 
     # 2. جلب الحسابات مباشرة من سوبابيس هنا بشكل مستقل تماماً
-    db_accounts = []
-    if supabase_client:
-        try:
-            res = supabase_client.table("telegram_accounts").select("session_string").eq("user_id", int(uid)).eq("status", "active").execute()
-            if res.data:
-                for row in res.data:
-                    s_str = row.get("session_string")
-                    if s_str:
-                        s_str = s_str.strip()
-                        # إذا كان الحساب قديم ويبدأ بـ sess_، نتجاهله لحماية المحرك
-                        if not s_str.startswith("sess_") and len(s_str) > 20:
-                            db_accounts.append(s_str)
-        except Exception as e:
-            print(f"DEBUG Error fetching accounts from DB: {e}")
+    # 🟢 الحل الحاسم: نستخدم المصفوفة الممررة مباشرة ونلغي الفحص التعجيزي المكرر
+    db_accounts = [s.strip() for s in army if s]
 
     if not db_accounts:
-        bot.send_message(uid, "❌ لا توجد حسابات نشطة بنظام الـ String Session المحدث في قاعدة البيانات!")
+        bot.send_message(uid, "❌ لا توجد حسابات نشطة ممررة للمحرك!")
         return
 
     # 3. استخراج الأعضاء المتفاعلين باستخدام أول حساب مشفر حقيقي

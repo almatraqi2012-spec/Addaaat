@@ -646,7 +646,7 @@ def start_attack_cmd(m):
                         s_str = s_str.strip()
                         # تصفية صارمة: نتجاهل أي نص جلسة قديم يبدأ بـ sess_ لحماية المحرك
                         if not s_str.startswith("sess_") and len(s_str) > 20:
-                            army.append(s_str)]
+                            army.append(s_str)
         except Exception as e:
             print(f"DEBUG Error fetching army from DB: {e}")
 

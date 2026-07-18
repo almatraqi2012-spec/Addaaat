@@ -252,15 +252,16 @@ async def run_sahm_v73(army, src, trg, total, uid):
         f"🏁 **اكتملت عملية الإضافة بنجاح!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الفعلي: `{get_balance(uid)}`$",
     )
 
+# دالة الوسيط لتشغيل الـ Async Loop داخل الـ Thread بشكل صحيح وآمن
 def launch_radar_safely(army, src, trg, total, uid):
     try:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        # تشغيل دالة الرادار الخارقة المحدثة بسلاسة
         loop.run_until_complete(run_sahm_v73(army, src, trg, total, uid))
         loop.close()
     except Exception as e:
         safe_send(uid, f"❌ حدث خلل أثناء معالجة عملية الإضافة: {str(e)}")
-
 
 # ================= [ 🎫 الأوامر الأساسية ولوحة التحكم ] =================
 @bot.message_handler(commands=["start"])

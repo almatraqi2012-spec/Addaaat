@@ -52,19 +52,20 @@ def get_balance(user_id):
     if not supabase_client:
         return 0.0
     try:
-        # البحث باستخدام str لضمان المطابقة مع نص أو رقم في القاعدة
-        print(f"DEBUG: Checking balance for user_id: {user_id}")
+        # تحويل لـ int ليطابق حقل int8 في سوبابيس تماماً
+        numeric_id = int(user_id)
+        print(f"DEBUG: Checking balance for user_id (int8): {numeric_id}")
         
-        response = supabase_client.table("users").select("balance").eq("id", str(user_id)).execute()
+        response = supabase_client.table("users").select("balance").eq("id", numeric_id).execute()
         
         print(f"DEBUG: Database response: {response.data}")
         
         if response.data and len(response.data) > 0:
             return round(float(response.data[0]["balance"]), 3)
         
-        # إذا لم يكن موجوداً، ننشئه برصيد صفر لكي تنجح عمليات التحديث لاحقاً
-        print(f"DEBUG: User {user_id} not found. Creating fresh profile...")
-        supabase_client.table("users").upsert({"id": str(user_id), "balance": 0.0}).execute()
+        # إذا لم يكن موجوداً، ننشئه كـ int8 برصيد صفر
+        print(f"DEBUG: User {numeric_id} not found. Creating fresh profile...")
+        supabase_client.table("users").upsert({"id": numeric_id, "balance": 0.0}).execute()
         return 0.0
     except Exception as e:
         print(f"DEBUG: Error in get_balance: {e}")
@@ -74,12 +75,13 @@ def update_balance(user_id, amt):
     if not supabase_client:
         return
     try:
-        current_balance = get_balance(user_id)
+        numeric_id = int(user_id)
+        current_balance = get_balance(numeric_id)
         new_balance = round(current_balance + float(amt), 3)
         
-        # استخدام upsert بدلاً من update لضمان الكتابة حتى لو كان المستخدم جديداً
-        supabase_client.table("users").upsert({"id": str(user_id), "balance": new_balance}).execute()
-        logging.info(f"✅ تم تحديث الرصيد للمستخدم {user_id} إلى {new_balance}")
+        # تحديث كـ int8 لضمان الحفظ الصحيح للرصيد
+        supabase_client.table("users").upsert({"id": numeric_id, "balance": new_balance}).execute()
+        logging.info(f"✅ تم تحديث الرصيد للمستخدم {numeric_id} إلى {new_balance}")
     except Exception as e:
         logging.error(f"Error in update_balance: {e}")
         
@@ -87,15 +89,16 @@ def save_account_db(user_id, session_string):
     if not supabase_client:
         return
     try:
-        # حفظ كـ str لمنع مشاكل أنواع البيانات الرقمية الطويلة
+        numeric_id = int(user_id)
+        # تأكد أيضاً أن حقل user_id في جدول telegram_accounts هو int8 أو رقم
         supabase_client.table("telegram_accounts").upsert(
             {
-                "user_id": str(user_id),
+                "user_id": numeric_id,
                 "session_string": str(session_string),
                 "status": "active"
             }
         ).execute()
-        logging.info(f"✅ تم حفظ الحساب بنجاح في السوبابيس للمستخدم {user_id}")
+        logging.info(f"✅ تم حفظ الحساب بنجاح في السوبابيس للمستخدم {numeric_id}")
     except Exception as e:
         logging.error(f"Error in save_account_db: {e}")
 

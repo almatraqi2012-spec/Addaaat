@@ -24,7 +24,7 @@ from telethon.tl.functions.messages import (
     GetMessagesReactionsRequest,
 )
 from telethon.tl.functions.users import GetFullUserRequest
-
+from telethon.sessions import StringSession
 # ================= [ ⚙️ الإعدادات المركزية ] =================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 MY_API_ID = 21349867
@@ -121,35 +121,16 @@ def safe_send(uid, text):
     import threading
     threading.Thread(target=run).start()
 # ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
-# دالة مساعدة لتأمين انضمام الحساب للمجموعات (العامة والخاصة/المخفية)
-async def smart_join(client, target_chat):
-    try:
-        # إذا كان رابط دعوة خاص (مخفي)
-        if "joinchat/" in target_chat or "+" in target_chat:
-            hash_code = target_chat.split('/')[-1].replace('+', '')
-            await client(ImportChatInviteRequest(hash_code))
-        else:
-            # إذا كان معرف عام أو رابط عادي
-            clean_chat = target_chat.replace("https://t.me/", "").replace("@", "")
-            await client(JoinChannelRequest(clean_chat))
-        return True
-    except errors.UserAlreadyParticipantError:
-        return True
-    except Exception as e:
-        logging.error(f"Join Error for {target_chat}: {e}")
-        return False
-
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(
-        uid, "🚀 **تم تفعيل رادار سهم V73 الخارق!**\n⚙️ جاري فحص الحسابات واختراق الجروبات المخفية..."
+        uid, "🚀 **تم تفعيل رادار سهم V73 الخارق!**\n⚙️ جاري سحب الحسابات واختراق الجروبات المخفية..."
     )
 
-    # 1. جلب الذاكرة والرصيد محلياً لتقليل الضغط
+    # 1. جلب الذاكرة والرصيد وحسابات سوبابيس
     added_list = get_memory()
     current_balance = get_balance(uid)
 
-    # حساب الحد الأقصى المسموح بنقله بناءً على الرصيد المتوفر
     max_allowed_by_balance = int(current_balance // PRICE_PER_MEMBER)
     total_to_add = min(total, max_allowed_by_balance)
 
@@ -157,73 +138,74 @@ async def run_sahm_v73(army, src, trg, total, uid):
         bot.send_message(uid, "❌ رصيدك غير كافي لنقل أي عضو.")
         return
 
-    # 2. استخراج الأعضاء بأعلى سرعة وأمان
-    targets = []
-    scout_index = 0
-    client_scout = None
-    
-    # محاولة تجميع الأعضاء من جيش الحسابات بالتناوب حتى ينجح حساب واحد
-    while scout_index < len(army):
-        session_file = army[scout_index]
-        client_scout = TelegramClient(session_file.replace(".session", ""), MY_API_ID, MY_API_HASH)
+    # جلب الحسابات النشطة ببيانات الـ session_string من سوبابيس
+    db_accounts = []
+    if supabase_client:
         try:
-            await client_scout.connect()
-            if await client_scout.is_user_authorized():
-                # محاولة الانضمام للمصدر أولاً (سواء عام أو مخفي)
-                await smart_join(client_scout, src)
-                
-                # خوارزمية سحب الأعضاء المتفاعلين من الرسائل
-                async for m in client_scout.iter_messages(src, limit=4000):
-                    if len(targets) >= total_to_add * 3: # تجميع خزان أهداف كبير لتفادي المحظورين
-                        break
-                    if m.sender_id and str(m.sender_id) not in added_list:
-                        try:
-                            u = await m.get_sender()
-                            if isinstance(u, tl_types.User) and not u.bot and not u.deleted:
-                                if u.id not in [x.id for x in targets]:
-                                    targets.append(u)
-                        except:
-                            continue
-                if targets:
-                    await client_scout.disconnect()
-                    break
-            await client_scout.disconnect()
+            res = supabase_client.table("telegram_accounts").select("session_string").eq("user_id", int(uid)).eq("status", "active").execute()
+            if res.data:
+                db_accounts = [row["session_string"] for row in res.data]
         except Exception as e:
-            scout_index += 1
-            if client_scout: await client_scout.disconnect()
+            print(f"DEBUG Error fetching accounts from DB: {e}")
+
+    if not db_accounts:
+        bot.send_message(uid, "❌ لا توجد حسابات نشطة مربوطة في قاعدة البيانات للقيام بالنقل!")
+        return
+
+    # 2. استخراج الأعضاء المتفاعلين باستخدام أول حساب في القاعدة
+    targets = []
+    scout_session = db_accounts[0]
+    
+    # إذا كان اسم ملف قديم، نغيره، لكن الأفضل استخدام StringSession
+    client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
+    try:
+        await client_scout.connect()
+        if await client_scout.is_user_authorized():
+            await smart_join(client_scout, src)
+            async for m in client_scout.iter_messages(src, limit=4000):
+                if len(targets) >= total_to_add * 3:
+                    break
+                if m.sender_id and str(m.sender_id) not in added_list:
+                    try:
+                        u = await m.get_sender()
+                        if isinstance(u, tl_types.User) and not u.bot and not u.deleted:
+                            if u.id not in [x.id for x in targets]:
+                                targets.append(u)
+                    except:
+                        continue
+        await client_scout.disconnect()
+    except Exception as e:
+        print(f"Scout Error: {e}")
 
     if not targets:
-        bot.send_message(uid, "❌ فشل سحب الأعضاء. إما المصدر محمي تماماً أو الحسابات لم تستطع الدخول.")
+        bot.send_message(uid, "❌ فشل سحب الأعضاء. إما المصدر محمي أو الحساب الأول محظور.")
         return
 
     bot.send_message(
-        uid, f"🎯 تم رصد `{len(targets)}` هدف متفاعل بنجاح.\n⚡ جاري بدء خوارزمية المداورة والإضافة الخارقة..."
+        uid, f"🎯 تم رصد `{len(targets)}` هدف متفاعل بنجاح.\n⚡ جاري بدء خوارزمية المداورة الرقمية الخارقة..."
     )
 
-    # 3. خوارزمية التحدي والمداورة المتقدمة (Rotation System)
+    # 3. خوارزمية المداورة والموازنة عبر الـ StringSession
     target_index = 0
     
     while success < total_to_add and target_index < len(targets):
-        accounts_tried = 0
-        
-        for session_file in army:
+        for session_str in db_accounts:
             if success >= total_to_add or target_index >= len(targets):
                 break
                 
-            client = TelegramClient(session_file.replace(".session", ""), MY_API_ID, MY_API_HASH)
+            # تشغيل الحساب من النص المخزن في سوبابيس مباشرة دون هارد ديسك
+            client = TelegramClient(StringSession(session_str), MY_API_ID, MY_API_HASH)
             try:
                 await client.connect()
                 if not await client.is_user_authorized():
                     await client.disconnect()
                     continue
 
-                # الانضمام للمجموعة الهدف (المراد النقل إليها)
                 joined = await smart_join(client, trg)
                 if not joined:
                     await client.disconnect()
                     continue
 
-                # كل حساب يقوم بإضافة عدد محدد آمن (مثلاً 5 أعضاء) ثم يداور تلقائياً للحساب التالي
                 account_adds = 0
                 while account_adds < 5 and success < total_to_add and target_index < len(targets):
                     current_target = targets[target_index]
@@ -231,25 +213,19 @@ async def run_sahm_v73(army, src, trg, total, uid):
 
                     try:
                         await client(InviteToChannelRequest(trg, [current_target]))
-                        
-                        # تحديث الذاكرة
                         save_user_memory(current_target.id)
                         
                         success += 1
                         account_adds += 1
-                        
-                        # خصم الرصيد محلياً فوراً لمنع التجميد، وسيتم تحديثه في السوبابيس دفعة واحدة نهاية العملية
                         current_balance -= PRICE_PER_MEMBER
 
                         bot.send_message(
                             uid,
-                            f"➕ الحساب `[{session_file.split('_')[-1][:6]}]` أضاف بنجاح:\n👤 {current_target.first_name or 'عضو تليجرام'}",
+                            f"➕ تم إضافة العضو بنجاح عبر نظام المداورة:\n👤 {current_target.first_name or 'عضو تليجرام'}",
                         )
-                        # وقت انتظار ذكي وديناميكي قصير لسرعة خارقة وأمان متوسط
                         await asyncio.sleep(random.randint(8, 15))
 
-                    except errors.FloodWaitError as e:
-                        # إذا واجه الحساب حظر مؤقت، يتركه فوراً ويدور للحساب التالي دون تعليق
+                    except errors.FloodWaitError:
                         break
                     except (errors.UserPrivacyRestrictedError, errors.UserNotMutualContactError):
                         continue
@@ -260,16 +236,16 @@ async def run_sahm_v73(army, src, trg, total, uid):
             except Exception:
                 continue
                 
-        # كسر الحلقة إذا تم استنفاد كل الأعضاء المستهدفين
         if target_index >= len(targets):
             break
 
-    # 4. التحديث النهائي والآمن لقاعدة البيانات (تحديث واحد فقط يوفر السرعة ويمنع تصفير الرصيد)
+    # 4. التحديث النهائي والأمن للرصيد
     if success > total:
          success = total
          
-    total_deduction = success * PRICE_PER_MEMBER
-    update_balance(uid, -total_deduction)
+    if success > 0:
+        total_deduction = success * PRICE_PER_MEMBER
+        update_balance(uid, -total_deduction)
 
     bot.send_message(
         uid,

@@ -516,7 +516,7 @@ def process_code(m, ph, h, sess):
         if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة السحابية!**")
             # تمرير كود الجلسة المشفر الطويل (session_str) بدلاً من اسم الملف القديم
-            save_account_db(m.chat.id, session_str)
+            save_account_db(m.chat.id, ph, session_str)
         elif res == "2FA":
             msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين:**")
             bot.register_next_step_handler(msg, process_password, sess, ph)
@@ -553,7 +553,7 @@ def process_password(m, sess, ph):
         if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح!**")
             # تمرير كود الجلسة المشفر الطويل هنا أيضاً لقاعدة البيانات
-            save_account_db(m.chat.id, session_str)
+            save_account_db(m.chat.id, ph, session_str)
         else:
             bot.send_message(m.chat.id, f"❌ خطأ في التحقق: {res}")
     except Exception as e:

@@ -482,16 +482,17 @@ def process_code(m, ph, h, sess):
         return
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)
+    
+    # استخدام StringSession فارغ لاستخراج النص الصافي
+    from telethon.sessions import StringSession
+    cl = TelegramClient(StringSession(), MY_API_ID, MY_API_HASH, loop=loop)
 
     async def sign():
         await cl.connect()
         try:
-            # تسجيل الدخول بالكود المرسل
             await cl.sign_in(ph, m.text, phone_code_hash=h)
-            
-            # 🔥 استخراج نص الجلسة الحقيقي الطويل فوراً
-            pure_string = cl.session.save()
+            # 🔥 استخراج الجلسة بصيغة النص الخام المتوافق 100%
+            pure_string = str(cl.session.save())
             return "OK", pure_string
         except errors.SessionPasswordNeededError:
             return "2FA", None
@@ -504,10 +505,9 @@ def process_code(m, ph, h, sess):
         res, session_str = loop.run_until_complete(sign())
         if res == "OK":
             bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة السحابية!**")
-            # 🔥 تمرير الـ session_str المستخرج هنا بشكل صحيح تماماً
             save_account_db(m.chat.id, ph, session_str)
         elif res == "2FA":
-            msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين (الـ Password):**")
+            msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين:**")
             bot.register_next_step_handler(msg, process_password, sess, ph)
         else:
             bot.send_message(m.chat.id, f"❌ {res}")
@@ -522,15 +522,16 @@ def process_password(m, sess, ph):
         return
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)
+    
+    from telethon.sessions import StringSession
+    cl = TelegramClient(StringSession(), MY_API_ID, MY_API_HASH, loop=loop)
 
     async def sign_p():
         await cl.connect()
         try:
             await cl.sign_in(password=m.text)
-            
-            # 🔥 استخراج نص الجلسة الطويل بعد كتابة الـ 2FA بنجاح
-            pure_string = cl.session.save()
+            # 🔥 استخراج الجلسة بصيغة النص الخام هنا أيضاً
+            pure_string = str(cl.session.save())
             return "OK", pure_string
         except Exception as e:
             return str(e), None
@@ -540,11 +541,10 @@ def process_password(m, sess, ph):
     try:
         res, session_str = loop.run_until_complete(sign_p())
         if res == "OK":
-            bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة بعد الـ 2FA!**")
-            # 🔥 تمرير المتغير الصحيح هنا أيضاً
+            bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة السحابية!**")
             save_account_db(m.chat.id, ph, session_str)
         else:
-            bot.send_message(m.chat.id, f"❌ خطأ في التحقق من كلمة السر: {res}")
+            bot.send_message(m.chat.id, f"❌ خطأ في التحقق: {res}")
     except Exception as e:
         print(f"DEBUG Error in process_password: {e}")
     finally:

@@ -122,16 +122,18 @@ def safe_send(uid, text):
     import threading
     threading.Thread(target=run).start()
 # ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
+
+# ================= [ 🚀 محرك الرادار المطور والأمن V74 المدمج ] =================
+
+# ================= [ 🚀 محرك الرادار المطور بنظام التحدي والمداورة V75 ] =================
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(
-        uid, "🚀 **تم تفعيل رادار سهم V73 المطور!**\n⚙️ جاري اختراق الحماية وقشط الأعضاء من الرسائل والتفاعلات..."
+        uid, "⚡ **تم تفعيل المحرك الهجين (تحدي + مداورة حية) V75!**\n⚙️ جاري قشط الأهداف وتجهيز رادارات الحسابات بالتوازي..."
     )
 
-    # 1. جلب الرصيد والذاكرة
-    added_list = get_memory()
+    # 1. جلب الرصيد والحد الأقصى المسموح به ماليًا
     current_balance = get_balance(uid)
-
     max_allowed_by_balance = int(current_balance // PRICE_PER_MEMBER)
     total_to_add = min(total, max_allowed_by_balance)
 
@@ -139,150 +141,168 @@ async def run_sahm_v73(army, src, trg, total, uid):
         bot.send_message(uid, "❌ رصيدك غير كافي لنقل أي عضو.")
         return
 
-    # 2. مصفوفة الحسابات الجاهزة مسبقاً
     db_accounts = [s.strip() for s in army if s]
-
     if not db_accounts:
         bot.send_message(uid, "❌ لا توجد حسابات نشطة ممررة للمحرك!")
         return
 
-    # 3. محرك القشط المتقدم (اصطياد المتفاعلين من الهيستوري والرسائل الإدارية)
-    captured_users = set()
-    scout_session = db_accounts[0]
-    
-    try:
-        client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
-        await client_scout.connect()
-        
-        if await client_scout.is_user_authorized():
-            # محاولة الوصول للمصدر (سواء معرف أو رابط انضمام)
-            try:
-                source_peer = await client_scout.get_input_entity(src)
-            except Exception:
-                try:
-                    # إذا كان رابط خاص، محاولة الانضمام التلقائي لكسر جدار الحماية
-                    link_hash = src.split('/')[-1].replace('+', '')
-                    updates = await client_scout(ImportChatInviteRequest(link_hash))
-                    source_peer = updates.chats[0]
-                except Exception as e:
-                    bot.send_message(uid, f"❌ تعذر اختراق رابط الجروب المصدر: {e}")
-                    await client_scout.disconnect()
-                    return
-
-            # بدء قشط الهيستوري (تخطي قفل قائمة الأعضاء)
-            offset_id = 0
-            limit = 100
-            
-            # قراءة الرسائل لجمع المتفاعلين الفعليين
-            for _ in range(40): 
-                history = await client_scout(GetHistoryRequest(
-                    peer=source_peer, offset_id=offset_id, offset_date=None,
-                    add_offset=0, limit=limit, max_id=0, min_id=0, hash=0
-                ))
-                if not history.messages:
-                    break
-                    
-                for msg in history.messages:
-                    # اصطياد مرسل الرسالة
-                    if msg.from_id and isinstance(msg.from_id, tl_types.PeerUser):
-                        u_id = msg.from_id.user_id
-                        if str(u_id) not in added_list:
-                            captured_users.add(u_id)
-                            
-                    # اصطياد الأشخاص المنضمين حديثاً من الرسائل الإدارية
-                    if msg.action and isinstance(msg.action, (tl_types.MessageActionChatAddUser, tl_types.MessageActionChatJoinedByLink)):
-                        for u_id in msg.action.users if hasattr(msg.action, 'users') else [msg.action.user_id]:
-                            if str(u_id) not in added_list:
-                                captured_users.add(u_id)
-                                
-                offset_id = history.messages[-1].id
-                if len(captured_users) >= total_to_add * 4:
-                    break
-
-        await client_scout.disconnect()
-    except Exception as e:
-        print(f"Scout Error: {e}")
-        if "valid string" in str(e).lower():
-            bot.send_message(uid, "⚠️ خطأ: نص الجلسة المخزن غير صالح. يرجى إعادة ربط الحساب.")
-            return
-
-    # جلب تفاصيل الكيانات للأشخاص المقشوطين وتجهيزهم كأهداف
-    targets = []
-    if captured_users:
+    # جلب القائمة السوداء من سوبابيس لمرة واحدة في البداية لتسريع الفحص
+    added_list = []
+    if supabase_client:
         try:
-            client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
-            await client_scout.connect()
-            for t_id in list(captured_users)[:total_to_add * 3]:
-                try:
-                    u = await client_scout.get_entity(t_id)
-                    if isinstance(u, tl_types.User) and not u.bot and not u.deleted:
-                        targets.append(u)
-                except:
-                    continue
-            await client_scout.disconnect()
+            res = supabase_client.table("memory_dragon").select("target_id").execute()
+            if res.data:
+                added_list = [str(row["target_id"]) for row in res.data]
         except Exception as e:
-            print(f"Target Entity Error: {e}")
+            print(f"DEBUG Error fetching Supabase blacklist: {e}")
 
-    if not targets:
-        bot.send_message(uid, "❌ فشل سحب الأعضاء. المصدر محمي بالكامل أو لا توجد أي تفاعلات حديثة بالقناة/الجروب.")
+    # 2. هيكلة الحسابات: كل حساب سيحتفظ ببياناته وجلساته وأهدافه الـ 100 الخاصة به
+    active_fleet = []
+    
+    bot.send_message(uid, "📡 **المرحلة الأولى:** بدء تشغيل الرادارات المستقلة لكل حساب لصيد الأعضاء...")
+
+    for idx, session_str in enumerate(db_accounts):
+        client = TelegramClient(StringSession(session_str.strip()), MY_API_ID, MY_API_HASH)
+        try:
+            await client.connect()
+            if not await client.is_user_authorized():
+                await client.disconnect()
+                continue
+
+            # الانضمام الذكي للجروب الهدف قبل البدء
+            joined = await smart_join(client, trg)
+            if not joined:
+                await client.disconnect()
+                continue
+
+            # تجهيز معرف المصدر بشكل صحيح
+            target_source = src
+            if not target_source.startswith("https://") and not target_source.startswith("@"):
+                target_source = f"@{target_source}"
+
+            # كسر حماية القشط بالانضمام للمصدر
+            try:
+                if "joinchat/" in target_source or "+" in target_source:
+                    link_hash = target_source.split('/')[-1].replace('+', '')
+                    await client(ImportChatInviteRequest(link_hash))
+                else:
+                    await client(JoinChannelRequest(target_source))
+                await asyncio.sleep(1)
+            except:
+                pass
+
+            # 📡 رادار الحساب الفردي (تحدي قشط 5000 رسالة وصيد 100 هدف فريد)
+            account_targets = []
+            async for message in client.iter_messages(target_source, limit=5000):
+                if len(account_targets) >= 100: 
+                    break
+
+                if message.sender_id and str(message.sender_id) not in added_list:
+                    try:
+                        sender = await message.get_sender()
+                        if isinstance(sender, tl_types.User) and not sender.bot and not sender.deleted:
+                            if sender.id not in [u.id for u in account_targets]:
+                                account_targets.append(sender)
+                    except Exception:
+                        continue
+
+            if account_targets:
+                # إضافة الحساب لأسطول التشغيل الجاهز للمداورة
+                active_fleet.append({
+                    'index': idx + 1,
+                    'client': client,
+                    'targets': account_targets,
+                    'adds_count': 0,
+                    'target_idx': 0,
+                    'is_flooded': False
+                })
+                print(f"✅ الحساب {idx + 1} جاهز ومعه {len(account_targets)} هدف.")
+            else:
+                await client.disconnect()
+
+        except Exception as e:
+            print(f"Error preparing account {idx+1}: {e}")
+            try: await client.disconnect()
+            except: pass
+
+    if not active_fleet:
+        bot.send_message(uid, "❌ فشل صيد أي أعضاء. المصدر محمي تماماً أو الحسابات معطلة.")
         return
 
     bot.send_message(
-        uid, f"🎯 **تم اختراق الجروب وقنص `{len(targets)}` هدف متفاعل بنجاح!**\n⚡ جاري بدء خوارزمية المداورة الرقمية الحية..."
+        uid, f"🎯 **اكتمل الصيد بنجاح!** تم تجهيز `{len(active_fleet)}` حسابات.\n⚡ جاري إطلاق طوفان النقل بنظام **المداورة التناوبية الحية** لحماية الحسابات..."
     )
 
-    # 4. خوارزمية المداورة والموازنة الحية للإضافة
-    target_index = 0
-    
-    while success < total_to_add and target_index < len(targets):
-        for session_str in db_accounts:
-            if success >= total_to_add or target_index >= len(targets):
+    # 3. خوارزمية المداورة الحية (عضو لكل حساب بالتناوب الدائري المتواصل)
+    while success < total_to_add:
+        # تصفية الحسابات التي ما زالت تمتلك أهدافاً ولم تصل لحد الـ 15 ولم تصب بالفلود
+        available_accounts = [
+            acc for acc in active_fleet 
+            if acc['adds_count'] < 15 and not acc['is_flooded'] and acc['target_idx'] < len(acc['targets'])
+        ]
+
+        if not available_accounts:
+            break # توقف عند انتهاء كل الحسابات من حدها أو أهدافها
+
+        for acc in available_accounts:
+            if success >= total_to_add:
                 break
-                
+
+            client = acc['client']
+            user = acc['targets'][acc['target_idx']]
+            acc['target_idx'] += 1
+
             try:
-                client = TelegramClient(StringSession(session_str.strip()), MY_API_ID, MY_API_HASH)
-                await client.connect()
-                if not await client.is_user_authorized():
-                    await client.disconnect()
-                    continue
+                # تنفيذ أمر الإضافة المباشر للجروب الهدف
+                await client(InviteToChannelRequest(trg, [user]))
+                
+                # حفظ في قاعدة بيانات سوبابيس فوراً لمنع التكرار اللحظي
+                if supabase_client:
+                    try: supabase_client.table("memory_dragon").insert({"target_id": str(user.id)}).execute()
+                    except: pass
+                
+                success += 1
+                acc['adds_count'] += 1
+                current_balance -= PRICE_PER_MEMBER
 
-                # الانضمام الذكي للجروب الهدف قبل البدء بالإدانة
-                joined = await smart_join(client, trg)
-                if not joined:
-                    await client.disconnect()
-                    continue
+                bot.send_message(
+                    uid,
+                    f"➕ [{acc['index']}] أضاف بنجاح: {user.first_name or user.id}\n📊 المجموع الحالي: `{success}` عضو."
+                )
+                
+                # استراحة قصيرة بين الحسابات المداورة لتوزيع الضغط (أمان إضافي)
+                await asyncio.sleep(random.randint(10, 25))
 
-                account_adds = 0
-                while account_adds < 5 and success < total_to_add and target_index < len(targets):
-                    current_target = targets[target_index]
-                    target_index += 1
+            except (errors.UserPrivacyRestrictedError, errors.UserAlreadyParticipantError):
+                if supabase_client:
+                    try: supabase_client.table("memory_dragon").insert({"target_id": str(user.id)}).execute()
+                    except: pass
+                continue
+                
+            except errors.FloodWaitError:
+                acc['is_flooded'] = True
+                bot.send_message(uid, f"⏳ الحساب رقم {acc['index']} أصيب بالفلود. تم إخراجه من المداورة مؤقتاً.")
+                continue
+            except Exception:
+                continue
 
-                    try:
-                        await client(InviteToChannelRequest(trg, [current_target]))
-                        save_user_memory(current_target.id)
-                        
-                        success += 1
-                        account_adds += 1
-                        current_balance -= PRICE_PER_MEMBER
+    # 4. تنظيف وإغلاق كافة الجلسات المفتوحة بشكل سليم
+    for acc in active_fleet:
+        try: await acc['client'].disconnect()
+        except: pass
 
-                        bot.send_message(
-                            uid,
-                            f"➕ تم إضافة العضو بنجاح عبر نظام المداورة:\n👤 {current_target.first_name or 'عضو تليجرام'}",
-                        )
-                        await asyncio.sleep(random.randint(8, 15))
+    # 5. التحديث المالي النهائي للرصيد داخل سوبابيس
+    if success > total:
+         success = total
+         
+    if success > 0:
+        total_deduction = success * PRICE_PER_MEMBER
+        update_balance(uid, -total_deduction)
 
-                    except errors.FloodWaitError:
-                        break
-                    except (errors.UserPrivacyRestrictedError, errors.UserNotMutualContactError):
-                        continue
-
-
-async def run_sahm_v73(army, src, trg, total, uid):
-    success = 0
     bot.send_message(
-        uid, "⚡ **تم تفعيل محرك الاقتحام الخارق دراغون V73!**\n⚔️ جاري اختراق الجروب وقشط المتفاعلين بالقوة..."
+        uid,
+        f"🏁 **اكتملت العملية بنجاح مذهل وبأعلى معايير الأمان!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الفعلي: `{get_balance(uid)}`$"
     )
-
     # 1. جلب الرصيد والذاكرة
     added_list = get_memory()
     current_balance = get_balance(uid)
@@ -324,126 +344,6 @@ async def run_sahm_v73(army, src, trg, total, uid):
                 print(f"DEBUG Join source warning: {je}")
                 # نواصل حتى لو فشل الانضمام فقد يكون الحساب داخل الجروب مسبقاً
 
-            # 🛑 قشط حي مباشر لأخر 3000 رسالة وتخطي قفل الأعضاء تماماً
-            async for message in client_scout.iter_messages(target_source, limit=3000):
-                # اصطياد أي شخص أرسل رسالة نصية أو وسائط
-                if message.from_id and isinstance(message.from_id, tl_types.PeerUser):
-                    u_id = message.from_id.user_id
-                    if str(u_id) not in added_list:
-                        captured_users.add(u_id)
-                
-                # اصطياد الأشخاص المنضمين حديثاً من الرسائل الإدارية التلقائية
-                if message.action and isinstance(message.action, (tl_types.MessageActionChatAddUser, tl_types.MessageActionChatJoinedByLink)):
-                    if hasattr(message.action, 'users'):
-                        for u_id in message.action.users:
-                            if str(u_id) not in added_list:
-                                captured_users.add(u_id)
-                    elif hasattr(message.action, 'user_id'):
-                        u_id = message.action.user_id
-                        if str(u_id) not in added_list:
-                            captured_users.add(u_id)
-
-                if len(captured_users) >= total_to_add * 4:
-                    break
-
-        await client_scout.disconnect()
-    except Exception as e:
-        print(f"Forced Scout Error: {e}")
-        if "valid string" in str(e).lower():
-            bot.send_message(uid, "⚠️ خطأ: نص الجلسة المخزن غير صالح. يرجى إعادة ربط الحساب.")
-            return
-
-    # 4. تحويل الآيديات المقتنصة إلى كائنات مستخدمين جاهزة
-    targets = []
-    if captured_users:
-        try:
-            client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
-            await client_scout.connect()
-            for t_id in list(captured_users)[:total_to_add * 3]:
-                try:
-                    u = await client_scout.get_entity(t_id)
-                    if isinstance(u, tl_types.User) and not u.bot and not u.deleted:
-                        targets.append(u)
-                except:
-                    continue
-            await client_scout.disconnect()
-        except Exception as e:
-            print(f"Forced Target Entity Error: {e}")
-
-    if not targets:
-        bot.send_message(uid, "❌ فشل سحب الأعضاء. تعذر قشط الدردشات، تأكد من صحة يوزر المصدر أو صلاحية الحساب.")
-        return
-
-    bot.send_message(
-        uid, f"🎯 **تم قنص `{len(targets)}` عضو متفاعل من وسط الشات غصباً عن الحماية!**\n⚡ جاري بدء طوفان النقل الحركي..."
-    )
-
-    # 5. خوارزمية المداورة والموازنة الحية للإضافة
-    target_index = 0
-    
-    while success < total_to_add and target_index < len(targets):
-        for session_str in db_accounts:
-            if success >= total_to_add or target_index >= len(targets):
-                break
-                
-            try:
-                client = TelegramClient(StringSession(session_str.strip()), MY_API_ID, MY_API_HASH)
-                await client.connect()
-                if not await client.is_user_authorized():
-                    await client.disconnect()
-                    continue
-
-                joined = await smart_join(client, trg)
-                if not joined:
-                    await client.disconnect()
-                    continue
-
-                account_adds = 0
-                while account_adds < 5 and success < total_to_add and target_index < len(targets):
-                    current_target = targets[target_index]
-                    target_index += 1
-
-                    try:
-                        await client(InviteToChannelRequest(trg, [current_target]))
-                        save_user_memory(current_target.id)
-                        
-                        success += 1
-                        account_adds += 1
-                        current_balance -= PRICE_PER_MEMBER
-
-                        bot.send_message(
-                            uid,
-                            f"➕ تم إضافة العضو بنجاح عبر نظام المداورة:\n👤 {current_target.first_name or 'عضو تليجرام'}",
-                        )
-                        await asyncio.sleep(random.randint(8, 15))
-
-                    except errors.FloodWaitError:
-                        break
-                    except (errors.UserPrivacyRestrictedError, errors.UserNotMutualContactError):
-                        continue
-                    except Exception:
-                        continue
-
-                await client.disconnect()
-            except Exception as e:
-                print(f"Account Loop Error: {e}")
-                continue
-                
-        if target_index >= len(targets):
-            break
-
-    # 6. التحديث النهائي والأمن للرصيد
-    if success > total:
-         success = total
-         
-    if success > 0:
-        total_deduction = success * PRICE_PER_MEMBER
-        update_balance(uid, -total_deduction)
-
-    bot.send_message(
-        uid,
-        f"🏁 **اكتملت عملية التحدي والاختراق بنجاح!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الفعلي: `{get_balance(uid)}`$"
-    )
 # دالة الوسيط لتشغيل الـ Async Loop داخل الـ Thread بشكل صحيح وآمن ومحمي
 def launch_radar_safely(army, src, trg, total, uid):
     try:

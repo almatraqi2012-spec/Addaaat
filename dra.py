@@ -694,41 +694,84 @@ def stats_all(m):
     )
 
 
+# ================= [ 🛠️ نظام الحذف السحابي المتزامن التلقائي ] =================
+
 @bot.message_handler(func=lambda m: m.text == "❌ حذف حساب")
 def delete_acc_menu(m):
-    army = [
-        f
-        for f in os.listdir(".")
-        if f.startswith(f"sess_{m.chat.id}_") and f.endswith(".session")
-    ]
+    # 1. جلب الحسابات مباشرة من عمود accounts بجدول users
+    army = []
+    if supabase_client:
+        try:
+            res = supabase_client.table("users").select("accounts").eq("user_id", str(m.chat.id)).execute()
+            if res.data and res.data[0].get("accounts"):
+                # تقسيم السطور وتنظيف الحسابات
+                army = [s.strip() for s in res.data[0]["accounts"].split("\n") if s.strip()]
+        except Exception as e:
+            print(f"DEBUG Error fetching accounts for deletion: {e}")
+
+    # 2. التحقق الصارم من وجود حسابات (لمنع التناقض)
     if not army:
         return bot.send_message(m.chat.id, "❌ لا توجد حسابات مربوطة.")
+
+    # 3. بناء الأزرار الذكية بناءً على الترتيب الفعلي للحسابات
     mk = types.InlineKeyboardMarkup()
-    for s in army:
-        num = s.split("_")[-1].replace(".session", "")
-        mk.add(types.InlineKeyboardButton(f"❌ حذف: {num}", callback_data=f"rm_{s}"))
-    bot.send_message(m.chat.id, "اختر الحساب للمسح نهائياً:", reply_markup=mk)
+    for idx, session_str in enumerate(army):
+        # نستخرج آخر 10 أحرف من جلسة السلسلة لتمييز الحساب للمستخدم بأمان
+        short_id = session_str[-10:] if len(session_str) > 10 else f"الحساب {idx+1}"
+        mk.add(types.InlineKeyboardButton(f"❌ حذف: ...{short_id}", callback_data=f"del_dragon_{idx}"))
+        
+    bot.send_message(m.chat.id, "اختر الحساب للمسح نهائياً من النظام السحابي:", reply_markup=mk)
 
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("rm_"))
+@bot.callback_query_handler(func=lambda c: c.data.startswith("del_dragon_"))
 def finalize_delete(c):
-    fname = c.data.replace("rm_", "")
+    # استخراج رقم الترتيب المراد حذفه
     try:
-        if os.path.exists(fname):
-            os.remove(fname)
-        if supabase_client:
-            supabase_client.table("accounts_dragon").delete().eq(
-                "session_name", fname
-            ).execute()
-        bot.answer_callback_query(c.id, "✅ تم الحذف بنجاح")
+        acc_index = int(c.data.replace("del_dragon_", ""))
+    except:
+        return bot.answer_callback_query(c.id, "❌ بيانات غير صالحة.")
+
+    if not supabase_client:
+        return bot.answer_callback_query(c.id, "❌ سوبابيس غير متصل حالياً.")
+
+    try:
+        # 1. جلب القائمة الحالية من قاعدة البيانات لتفادي مسح بيانات خاطئة
+        res = supabase_client.table("users").select("accounts").eq("user_id", str(c.message.chat.id)).execute()
+        
+        if not res.data or not res.data[0].get("accounts"):
+            bot.answer_callback_query(c.id, "❌ لم يتم العثور على الحسابات.")
+            return
+
+        army = [s.strip() for s in res.data[0]["accounts"].split("\n") if s.strip()]
+
+        # 2. التأكد من أن الترتيب المطلوب حذفه موجود فعلاً في النطاق
+        if acc_index >= len(army):
+            bot.answer_callback_query(c.id, "❌ تم تحديث الحسابات مسبقاً.")
+            return
+
+        # 3. إزالة الحساب المحدد من القائمة
+        removed_acc = army.pop(acc_index)
+        
+        # 4. إعادة دمج الحسابات المتبقية وإرسالها مجدداً لسوبابيس لتحديث العمود
+        updated_accounts_str = "\n".join(army)
+        
+        supabase_client.table("users").update({"accounts": updated_accounts_str}).eq("user_id", str(c.message.chat.id)).execute()
+
+        # 5. تأكيد الحذف بنجاح وتحديث واجهة المستخدم فوراً
+        bot.answer_callback_query(c.id, "✅ تم الحذف بنجاح من السحابة")
+        
+        # استخراج رمز تمييزي مصغر للحساب المحذوف للتأكيد
+        short_id = removed_acc[-10:] if len(removed_acc) > 10 else f"رقم {acc_index + 1}"
+        
         bot.edit_message_text(
-            f"✅ تم إلغاء ربط الحساب وحذفه `{fname.split('_')[-1]}`.",
+            f"✅ **تم إلغاء ربط الحساب بنجاح وحذفه نهائياً من السيرفر!**\n⚙️ الحساب المحذوف: `...{short_id}`\n📦 الحسابات المتبقية الحالية: `{len(army)}`",
             c.message.chat.id,
             c.message.message_id,
         )
-    except Exception as e:
-        bot.answer_callback_query(c.id, f"❌ حدث خلل: {str(e)}")
 
+    except Exception as e:
+        print(f"Error executing cloud deletion: {e}")
+        bot.answer_callback_query(c.id, f"❌ حدث خلل أثناء الحذف: {str(e)}")
 
 # =====================================================================
 # 🚀 تعديل التوجيه والتحكم في زر البدء (تم تصحيح المدخلات والـ Threads والسوبابيس)

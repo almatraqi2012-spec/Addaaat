@@ -122,14 +122,11 @@ def safe_send(uid, text):
     import threading
     threading.Thread(target=run).start()
 # ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
-
-# ================= [ 🚀 محرك الرادار المطور والأمن V74 المدمج ] =================
-
-# ================= [ 🚀 محرك الرادار المطور بنظام التحدي والمداورة V75 ] =================
+# ================= [ 🚀 محرك الرادار المطور بنظام التحدي والمداورة الشامل V75 ] =================
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(
-        uid, "⚡ **تم تفعيل المحرك الهجين (تحدي + مداورة حية) V75!**\n⚙️ جاري قشط الأهداف وتجهيز رادارات الحسابات بالتوازي..."
+        uid, "⚡ **تم تفعيل المحرك الهجين (اقتحام قسري + تحدي + مداورة حية) V75!**\n⚙️ جاري كسر الحماية وقشط الأهداف وتجهيز الرادارات..."
     )
 
     # 1. جلب الرصيد والحد الأقصى المسموح به ماليًا
@@ -156,10 +153,48 @@ async def run_sahm_v73(army, src, trg, total, uid):
         except Exception as e:
             print(f"DEBUG Error fetching Supabase blacklist: {e}")
 
-    # 2. هيكلة الحسابات: كل حساب سيحتفظ ببياناته وجلساته وأهدافه الـ 100 الخاصة به
-    active_fleet = []
+    # تجهيز معرف المصدر بشكل صحيح قبل البدء
+    target_source = src
+    if not target_source.startswith("https://") and not target_source.startswith("@"):
+        target_source = f"@{target_source}"
+
+    # 2. طور الاقتحام والقشط القسري الأولي عبر الحساب الأول كاشف الحماية
+    captured_users = set()
+    scout_session = db_accounts[0]
     
-    bot.send_message(uid, "📡 **المرحلة الأولى:** بدء تشغيل الرادارات المستقلة لكل حساب لصيد الأعضاء...")
+    try:
+        print(f"DEBUG: Starting forced join activation with account 1")
+        client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
+        await client_scout.connect()
+        
+        if await client_scout.is_user_authorized():
+            # خطوة كسر الحماية: إجبار الحساب الكاشف على الانضمام للجروب المصدر
+            try:
+                if "joinchat/" in target_source or "+" in target_source:
+                    link_hash = target_source.split('/')[-1].replace('+', '')
+                    await client_scout(ImportChatInviteRequest(link_hash))
+                else:
+                    await client_scout(JoinChannelRequest(target_source))
+                await asyncio.sleep(2) 
+            except Exception as je:
+                print(f"DEBUG Join source warning: {je}")
+
+            # قشط سريع للرسائل الإدارية والمنضمين حديثاً لكسر الحظر المبدئي
+            async for message in client_scout.iter_messages(target_source, limit=1000):
+                if message.sender_id and str(message.sender_id) not in added_list:
+                    captured_users.add(message.sender_id)
+                if message.action and hasattr(message.action, 'users'):
+                    for u_id in message.action.users:
+                        if str(u_id) not in added_list:
+                            captured_users.add(u_id)
+
+        await client_scout.disconnect()
+    except Exception as e:
+        print(f"Scout Main Error: {e}")
+
+    # 3. هيكلة الحسابات: تشغيل الرادارات المستقلة لكل حساب (تحدي 5000 رسالة)
+    active_fleet = []
+    bot.send_message(uid, "📡 **المرحلة الأولى:** بدء تشغيل الرادارات المستقلة لكل حساب لتوسيع نطاق الصيد...")
 
     for idx, session_str in enumerate(db_accounts):
         client = TelegramClient(StringSession(session_str.strip()), MY_API_ID, MY_API_HASH)
@@ -175,12 +210,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
                 await client.disconnect()
                 continue
 
-            # تجهيز معرف المصدر بشكل صحيح
-            target_source = src
-            if not target_source.startswith("https://") and not target_source.startswith("@"):
-                target_source = f"@{target_source}"
-
-            # كسر حماية القشط بالانضمام للمصدر
+            # كسر حماية القشط للحساب الحالي أيضاً بالانضمام للمصدر لضمان الوصول للـ History
             try:
                 if "joinchat/" in target_source or "+" in target_source:
                     link_hash = target_source.split('/')[-1].replace('+', '')
@@ -193,6 +223,18 @@ async def run_sahm_v73(army, src, trg, total, uid):
 
             # 📡 رادار الحساب الفردي (تحدي قشط 5000 رسالة وصيد 100 هدف فريد)
             account_targets = []
+            
+            # إذا نجح القشط الأولي بالحساب الكاشف، نقوم بتحويل الآيديات المحفوظة إلى كائنات مستهدفة أولاً
+            if idx == 0 and captured_users:
+                for c_id in list(captured_users)[:100]:
+                    try:
+                        u = await client.get_entity(c_id)
+                        if isinstance(u, tl_types.User) and not u.bot and not u.deleted:
+                            account_targets.append(u)
+                    except:
+                        continue
+
+            # إكمال الفحص الشامل لـ 5000 رسالة المعتمد في نظام تحديك الصارم
             async for message in client.iter_messages(target_source, limit=5000):
                 if len(account_targets) >= 100: 
                     break
@@ -207,7 +249,6 @@ async def run_sahm_v73(army, src, trg, total, uid):
                         continue
 
             if account_targets:
-                # إضافة الحساب لأسطول التشغيل الجاهز للمداورة
                 active_fleet.append({
                     'index': idx + 1,
                     'client': client,
@@ -230,19 +271,18 @@ async def run_sahm_v73(army, src, trg, total, uid):
         return
 
     bot.send_message(
-        uid, f"🎯 **اكتمل الصيد بنجاح!** تم تجهيز `{len(active_fleet)}` حسابات.\n⚡ جاري إطلاق طوفان النقل بنظام **المداورة التناوبية الحية** لحماية الحسابات..."
+        uid, f"🎯 **اكتمل القشط والاقتحام بنجاح!** تم تجهيز `{len(active_fleet)}` حساب برادارات مستقلة.\n⚡ جاري إطلاق طوفان النقل بنظام **المداورة التناوبية الحية** وحساب الأرصدة..."
     )
 
-    # 3. خوارزمية المداورة الحية (عضو لكل حساب بالتناوب الدائري المتواصل)
+    # 4. خوارزمية المداورة الحية (عضو لكل حساب بالتناوب الدائري المتواصل)
     while success < total_to_add:
-        # تصفية الحسابات التي ما زالت تمتلك أهدافاً ولم تصل لحد الـ 15 ولم تصب بالفلود
         available_accounts = [
             acc for acc in active_fleet 
             if acc['adds_count'] < 40 and not acc['is_flooded'] and acc['target_idx'] < len(acc['targets'])
         ]
 
         if not available_accounts:
-            break # توقف عند انتهاء كل الحسابات من حدها أو أهدافها
+            break 
 
         for acc in available_accounts:
             if success >= total_to_add:
@@ -270,7 +310,6 @@ async def run_sahm_v73(army, src, trg, total, uid):
                     f"➕ [{acc['index']}] أضاف بنجاح: {user.first_name or user.id}\n📊 المجموع الحالي: `{success}` عضو."
                 )
                 
-                # استراحة قصيرة بين الحسابات المداورة لتوزيع الضغط (أمان إضافي)
                 await asyncio.sleep(random.randint(10, 25))
 
             except (errors.UserPrivacyRestrictedError, errors.UserAlreadyParticipantError):
@@ -286,12 +325,12 @@ async def run_sahm_v73(army, src, trg, total, uid):
             except Exception:
                 continue
 
-    # 4. تنظيف وإغلاق كافة الجلسات المفتوحة بشكل سليم
+    # 5. تنظيف وإغلاق كافة الجلسات المفتوحة بشكل سليم
     for acc in active_fleet:
         try: await acc['client'].disconnect()
         except: pass
 
-    # 5. التحديث المالي النهائي للرصيد داخل سوبابيس
+    # 6. التحديث المالي النهائي للرصيد داخل سوبابيس
     if success > total:
          success = total
          
@@ -303,47 +342,6 @@ async def run_sahm_v73(army, src, trg, total, uid):
         uid,
         f"🏁 **اكتملت العملية بنجاح مذهل وبأعلى معايير الأمان!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الفعلي: `{get_balance(uid)}`$"
     )
-    # 1. جلب الرصيد والذاكرة
-    added_list = get_memory()
-    current_balance = get_balance(uid)
-
-    max_allowed_by_balance = int(current_balance // PRICE_PER_MEMBER)
-    total_to_add = min(total, max_allowed_by_balance)
-
-    if total_to_add <= 0:
-        bot.send_message(uid, "❌ رصيدك غير كافي لنقل أي عضو.")
-        return
-
-    # 2. مصفوفة الحسابات الجاهزة
-    db_accounts = [s.strip() for s in army if s]
-
-    if not db_accounts:
-        bot.send_message(uid, "❌ لا توجد حسابات نشطة ممررة للمحرك!")
-        return
-
-    captured_users = set()
-    scout_session = db_accounts[0]
-    
-    # 3. طور الاقتحام والقشط القسري
-    try:
-        client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
-        await client_scout.connect()
-        
-        if await client_scout.is_user_authorized():
-            # 🔥 تعديل المعرف للتأكد من قبوله (إذا نسي المستخدم إضافة @ أو الرابط)
-            target_source = src
-            if not target_source.startswith("https://") and not target_source.startswith("@"):
-                target_source = f"@{target_source}"
-            
-            # 💥 خطوة كسر الحماية: إجبار الحساب الكاشف على الانضمام للجروب المصدر أولاً
-            try:
-                print(f"DEBUG: Compiling forced join to {target_source}")
-                await client_scout(JoinChannelRequest(target_source))
-                await asyncio.sleep(2) # استراحة قصيرة لتثبيت الانضمام في السيرفر
-            except Exception as je:
-                print(f"DEBUG Join source warning: {je}")
-                # نواصل حتى لو فشل الانضمام فقد يكون الحساب داخل الجروب مسبقاً
-
 # دالة الوسيط لتشغيل الـ Async Loop داخل الـ Thread بشكل صحيح وآمن ومحمي
 def launch_radar_safely(army, src, trg, total, uid):
     try:

@@ -122,12 +122,10 @@ def safe_send(uid, text):
     import threading
     threading.Thread(target=run).start()
 # ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
-from telethon.sessions import StringSession
-
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(
-        uid, "🚀 **تم تفعيل رادار سهم V73 الخارق!**\n⚙️ جاري سحب الحسابات واختراق الجروبات المخفية..."
+        uid, "🚀 **تم تفعيل رادار سهم V73 المطور!**\n⚙️ جاري اختراق الحماية وقشط الأعضاء من الرسائل والتفاعلات..."
     )
 
     # 1. جلب الرصيد والذاكرة
@@ -141,52 +139,99 @@ async def run_sahm_v73(army, src, trg, total, uid):
         bot.send_message(uid, "❌ رصيدك غير كافي لنقل أي عضو.")
         return
 
-    # 2. جلب الحسابات مباشرة من سوبابيس هنا بشكل مستقل تماماً
-    # 🟢 الحل الحاسم: نستخدم المصفوفة الممررة مباشرة ونلغي الفحص التعجيزي المكرر
+    # 2. مصفوفة الحسابات الجاهزة مسبقاً
     db_accounts = [s.strip() for s in army if s]
 
     if not db_accounts:
         bot.send_message(uid, "❌ لا توجد حسابات نشطة ممررة للمحرك!")
         return
 
-    # 3. استخراج الأعضاء المتفاعلين باستخدام أول حساب مشفر حقيقي
-    targets = []
+    # 3. محرك القشط المتقدم (اصطياد المتفاعلين من الهيستوري والرسائل الإدارية)
+    captured_users = set()
     scout_session = db_accounts[0]
     
     try:
-        # إنشاء الجلسة مع التحقق الصارم من النص
         client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
         await client_scout.connect()
+        
         if await client_scout.is_user_authorized():
-            await smart_join(client_scout, src)
-            async for m in client_scout.iter_messages(src, limit=4000):
-                if len(targets) >= total_to_add * 3:
+            # محاولة الوصول للمصدر (سواء معرف أو رابط انضمام)
+            try:
+                source_peer = await client_scout.get_input_entity(src)
+            except Exception:
+                try:
+                    # إذا كان رابط خاص، محاولة الانضمام التلقائي لكسر جدار الحماية
+                    link_hash = src.split('/')[-1].replace('+', '')
+                    updates = await client_scout(ImportChatInviteRequest(link_hash))
+                    source_peer = updates.chats[0]
+                except Exception as e:
+                    bot.send_message(uid, f"❌ تعذر اختراق رابط الجروب المصدر: {e}")
+                    await client_scout.disconnect()
+                    return
+
+            # بدء قشط الهيستوري (تخطي قفل قائمة الأعضاء)
+            offset_id = 0
+            limit = 100
+            
+            # قراءة الرسائل لجمع المتفاعلين الفعليين
+            for _ in range(40): 
+                history = await client_scout(GetHistoryRequest(
+                    peer=source_peer, offset_id=offset_id, offset_date=None,
+                    add_offset=0, limit=limit, max_id=0, min_id=0, hash=0
+                ))
+                if not history.messages:
                     break
-                if m.sender_id and str(m.sender_id) not in added_list:
-                    try:
-                        u = await m.get_sender()
-                        if isinstance(u, tl_types.User) and not u.bot and not u.deleted:
-                            if u.id not in [x.id for x in targets]:
-                                targets.append(u)
-                    except:
-                        continue
+                    
+                for msg in history.messages:
+                    # اصطياد مرسل الرسالة
+                    if msg.from_id and isinstance(msg.from_id, tl_types.PeerUser):
+                        u_id = msg.from_id.user_id
+                        if str(u_id) not in added_list:
+                            captured_users.add(u_id)
+                            
+                    # اصطياد الأشخاص المنضمين حديثاً من الرسائل الإدارية
+                    if msg.action and isinstance(msg.action, (tl_types.MessageActionChatAddUser, tl_types.MessageActionChatJoinedByLink)):
+                        for u_id in msg.action.users if hasattr(msg.action, 'users') else [msg.action.user_id]:
+                            if str(u_id) not in added_list:
+                                captured_users.add(u_id)
+                                
+                offset_id = history.messages[-1].id
+                if len(captured_users) >= total_to_add * 4:
+                    break
+
         await client_scout.disconnect()
     except Exception as e:
         print(f"Scout Error: {e}")
-        # إذا انهار الحساب الأول بسبب النص (رغم الفلترة)، نطبع تنبيه مخصص بدلاً من توقف السكريبت
         if "valid string" in str(e).lower():
             bot.send_message(uid, "⚠️ خطأ: نص الجلسة المخزن غير صالح. يرجى إعادة ربط الحساب.")
             return
 
+    # جلب تفاصيل الكيانات للأشخاص المقشوطين وتجهيزهم كأهداف
+    targets = []
+    if captured_users:
+        try:
+            client_scout = TelegramClient(StringSession(scout_session), MY_API_ID, MY_API_HASH)
+            await client_scout.connect()
+            for t_id in list(captured_users)[:total_to_add * 3]:
+                try:
+                    u = await client_scout.get_entity(t_id)
+                    if isinstance(u, tl_types.User) and not u.bot and not u.deleted:
+                        targets.append(u)
+                except:
+                    continue
+            await client_scout.disconnect()
+        except Exception as e:
+            print(f"Target Entity Error: {e}")
+
     if not targets:
-        bot.send_message(uid, "❌ فشل سحب الأعضاء. إما المصدر محمي أو الحساب الأول محظور.")
+        bot.send_message(uid, "❌ فشل سحب الأعضاء. المصدر محمي بالكامل أو لا توجد أي تفاعلات حديثة بالقناة/الجروب.")
         return
 
     bot.send_message(
-        uid, f"🎯 تم رصد `{len(targets)}` هدف متفاعل بنجاح.\n⚡ جاري بدء خوارزمية المداورة الرقمية الخارقة..."
+        uid, f"🎯 **تم اختراق الجروب وقنص `{len(targets)}` هدف متفاعل بنجاح!**\n⚡ جاري بدء خوارزمية المداورة الرقمية الحية..."
     )
 
-    # 4. خوارزمية المداورة والموازنة عبر الـ StringSession الآمن
+    # 4. خوارزمية المداورة والموازنة الحية للإضافة
     target_index = 0
     
     while success < total_to_add and target_index < len(targets):
@@ -201,6 +246,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
                     await client.disconnect()
                     continue
 
+                # الانضمام الذكي للجروب الهدف قبل البدء بالإدانة
                 joined = await smart_join(client, trg)
                 if not joined:
                     await client.disconnect()
@@ -250,7 +296,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
 
     bot.send_message(
         uid,
-        f"🏁 **اكتملت عملية الإضافة بنجاح!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الفعلي: `{get_balance(uid)}`$"
+        f"🏁 **اكتملت عملية الاختراق والإضافة بنجاح!**\n\n✅ إجمالي المضافين: `{success}`\n💰 رصيدك المتبقي الفعلي: `{get_balance(uid)}`$"
     )
 # دالة الوسيط لتشغيل الـ Async Loop داخل الـ Thread بشكل صحيح وآمن ومحمي
 def launch_radar_safely(army, src, trg, total, uid):

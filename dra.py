@@ -238,7 +238,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
         # تصفية الحسابات التي ما زالت تمتلك أهدافاً ولم تصل لحد الـ 15 ولم تصب بالفلود
         available_accounts = [
             acc for acc in active_fleet 
-            if acc['adds_count'] < 15 and not acc['is_flooded'] and acc['target_idx'] < len(acc['targets'])
+            if acc['adds_count'] < 40 and not acc['is_flooded'] and acc['target_idx'] < len(acc['targets'])
         ]
 
         if not available_accounts:

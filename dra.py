@@ -113,7 +113,7 @@ def get_memory():
         logging.error(f"Error in get_memory: {e}")
         return []
 
-def safe_send(uid, text)
+def safe_send(uid, text):
     def run():
         try:
             bot.send_message(uid, text, parse_mode="Markdown")

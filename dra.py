@@ -124,13 +124,14 @@ def safe_send(uid, text):
 # ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
 
 # ================= [ 🐉 محرك دراجون الخارق بنظام الاقتحام والتحدي الشامل V76 Pro ] ================                                           
-# ==============:
-# ================= [ 🚀 محرك الرادار المطور بنظام التحدي والمداورة V75 ] =================
+# ==============================================================================
+# 🚀 محرك الرادار والمداورة (run_sahm_v73)
+# ==============================================================================
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
     bot.send_message(
         uid,
-        "⚡ تم تفعيل المحرك الهجين (تحدي + مداورة حية) V75!\n⚙️ جاري قشط الأهداف وتجهيز رادارات الحسابات بالتوازي...",
+        "⚡ تم تفعيل المحرك الهجين V75!\n⚙️ جاري قشط الأهداف وتجهيز رادارات الحسابات بالتوازي...",
     )
 
     # 1. جلب الرصيد والحد الأقصى المسموح به ماليًا
@@ -147,7 +148,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
         bot.send_message(uid, "❌ لا توجد حسابات نشطة ممررة للمحرك!")
         return
 
-    # جلب القائمة السوداء من سوبابيس لمرة واحدة في البداية لتسريع الفحص
+    # جلب القائمة السوداء من سوبابيس لمرة واحدة لتسريع الفحص
     added_list = []
     if supabase_client:
         try:
@@ -161,7 +162,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
         except Exception as e:
             print(f"DEBUG Error fetching Supabase blacklist: {e}")
 
-    # 2. هيكلة الحسابات: كل حساب سيحتفظ ببياناته وجلساته وأهدافه الـ 100 الخاصة به
+    # 2. هيكلة الأسطول وقشط الأهداف لكل حساب
     active_fleet = []
 
     bot.send_message(
@@ -179,20 +180,19 @@ async def run_sahm_v73(army, src, trg, total, uid):
                 await client.disconnect()
                 continue
 
-            # الانضمام الذكي للجروب الهدف قبل البدء
+            # الانضمام الذكي للجروب الهدف
             joined = await smart_join(client, trg)
             if not joined:
                 await client.disconnect()
                 continue
 
-            # تجهيز معرف المصدر بشكل صحيح
             target_source = src
             if not target_source.startswith(
                 "https://"
             ) and not target_source.startswith("@"):
                 target_source = f"@{target_source}"
 
-            # كسر حماية القشط بالانضمام للمصدر
+            # انضمام للمصدر إن أمكن
             try:
                 if "joinchat/" in target_source or "+" in target_source:
                     link_hash = target_source.split("/")[-1].replace("+", "")
@@ -203,7 +203,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
             except Exception:
                 pass
 
-            # 📡 رادار الحساب الفردي (تحدي قشط 5000 رسالة وصيد 100 هدف فريد)
+            # رادار الحساب الفردي (صيد حتى 100 هدف فريد من أحدث الرسائل)
             account_targets = []
             async for message in client.iter_messages(
                 target_source, limit=5000
@@ -228,7 +228,6 @@ async def run_sahm_v73(army, src, trg, total, uid):
                         continue
 
             if account_targets:
-                # إضافة الحساب لأسطول التشغيل الجاهز للمداورة
                 active_fleet.append(
                     {
                         "index": idx + 1,
@@ -265,9 +264,8 @@ async def run_sahm_v73(army, src, trg, total, uid):
         f"⚡ جاري إطلاق طوفان النقل بنظام المداورة التناوبية الحية لحماية الحسابات...",
     )
 
-    # 3. خوارزمية المداورة الحية (عضو لكل حساب بالتناوب الدائري المتواصل)
+    # 3. خوارزمية المداورة الحية (عضو لكل حساب بالتناوب الدائري)
     while success < total_to_add:
-        # تصفية الحسابات التي ما زالت تمتلك أهدافاً ولم تصل لحد الـ 15 ولم تصب بالفلود
         available_accounts = [
             acc
             for acc in active_fleet
@@ -277,7 +275,7 @@ async def run_sahm_v73(army, src, trg, total, uid):
         ]
 
         if not available_accounts:
-            break  # توقف عند انتهاء كل الحسابات من حدها أو أهدافها
+            break
 
         for acc in available_accounts:
             if success >= total_to_add:
@@ -288,10 +286,8 @@ async def run_sahm_v73(army, src, trg, total, uid):
             acc["target_idx"] += 1
 
             try:
-                # تنفيذ أمر الإضافة المباشر للجروب الهدف
                 await client(InviteToChannelRequest(trg, [user]))
 
-                # حفظ في قاعدة بيانات سوبابيس فوراً لمنع التكرار اللحظي
                 if supabase_client:
                     try:
                         supabase_client.table("memory_dragon").insert(
@@ -310,7 +306,6 @@ async def run_sahm_v73(army, src, trg, total, uid):
                     f"📊 المجموع الحالي: {success} عضو.",
                 )
 
-                # استراحة قصيرة بين الحسابات المداورة لتوزيع الضغط (أمان إضافي)
                 await asyncio.sleep(random.randint(10, 25))
 
             except (
@@ -336,14 +331,14 @@ async def run_sahm_v73(army, src, trg, total, uid):
             except Exception:
                 continue
 
-    # 4. تنظيف وإغلاق كافة الجلسات المفتوحة بشكل سليم
+    # 4. تنظيف وإغلاق الجلسات
     for acc in active_fleet:
         try:
             await acc["client"].disconnect()
         except Exception:
             pass
 
-    # 5. التحديث المالي النهائي للرصيد داخل سوبابيس
+    # 5. خصم الرصيد النهائي
     if success > total:
         success = total
 
@@ -353,10 +348,11 @@ async def run_sahm_v73(army, src, trg, total, uid):
 
     bot.send_message(
         uid,
-        f"🏁 اكتملت العملية بنجاح مذهل وبأعلى معايير الأمان!\n\n"
+        f"🏁 اكتملت العملية بنجاح!\n\n"
         f"✅ إجمالي المضافين: {success}\n"
         f"💰 رصيدك المتبقي الفعلي: {get_balance(uid)}$",
     )
+
 # ================= [ 🎫 الأوامر الأساسية ولوحة التحكم ] =================
 @bot.message_handler(commands=["start"])
 def start_main(m):

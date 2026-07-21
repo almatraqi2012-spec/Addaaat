@@ -711,7 +711,26 @@ def get_target_group(m, army, source):
     msg = bot.send_message(m.chat.id, "🔢 **أدخل العدد الإجمالي المطلوب نقله:**")
     bot.register_next_step_handler(msg, start_radar_execution, army, source, target)
 
+# 1️⃣ الدالة الأولى: تجهيز البيئة لتشغيل المحرك بدون تجميد البوت
+def launch_radar_safely(army, source, target, total_needed, chat_id):
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # تشغيل دالة النقل
+        loop.run_until_complete(
+            run_sahm_v73(army, source, target, total_needed, chat_id)
+        )
+        loop.close()
+    except Exception as e:
+        print(f"❌ خطأ المحرك: {e}")
+        try:
+            bot.send_message(chat_id, f"❌ حدث خطأ أثناء التشغيل:\n`{str(e)}`")
+        except Exception:
+            pass
 
+
+# 2️⃣ الدالة الثانية: استقبال الأمر وإطلاق العملية
 def start_radar_execution(m, army, source, target):
     if not m.text:
         return
@@ -719,8 +738,6 @@ def start_radar_execution(m, army, source, target):
         total_needed = int(m.text.strip())
         bot.send_message(m.chat.id, "⏳ جاري تحضير المحرك وإطلاق الحسابات...")
 
-        # تشغيل السكربت عبر بيئة معزولة ونظيفة تمنع تعليق البوت الأساسي
-        # المتغير army هنا أصبح يحتوي على نصوص الجلسات الجاهزة للإقلاع
         threading.Thread(
             target=launch_radar_safely,
             args=(army, source, target, total_needed, m.chat.id),

@@ -125,43 +125,43 @@ def safe_send(uid, text):
 
 # ================= [ 🐉 محرك دراجون الخارق بنظام الاقتحام والتحدي الشامل V76 Pro ] ================                                           
 # ================= [ 🐉 محرك دراجون الصارم V76 - نسخة النتيجة الفل ] =================
+
+# ================= [ 🐉 محرك دراجون للإنتاج المباشر ] =================
 async def run_sahm_v73(army, src, trg, total, uid):
     success = 0
-    bot.send_message(uid, "⚡ **تم تشغيل محرك دراجون الصارم V76**\n⚙️ جاري بدء النقل القسري الفوري...")
+    skipped = 0
+    bot.send_message(uid, "⚡ **بدء تشغيل المحرك...**\n⚙️ جاري فحص المصدر وتجهيز الأسطول...")
 
     current_balance = get_balance(uid)
-    max_allowed_by_balance = int(current_balance // PRICE_PER_MEMBER)
-    total_to_add = min(total, max_allowed_by_balance)
+    max_allowed = int(current_balance // PRICE_PER_MEMBER)
+    total_to_add = min(total, max_allowed)
 
     if total_to_add <= 0:
-        bot.send_message(uid, "❌ رصيدك غير كافي لنقل الأعضاء.")
+        bot.send_message(uid, "❌ الرصيد غير كافٍ لتنفيذ العملية.")
         return
 
     db_accounts = [s.strip() for s in army if s]
     if not db_accounts:
-        bot.send_message(uid, "❌ لا توجد حسابات نشطة ممررة للمحرك!")
+        bot.send_message(uid, "❌ لا توجد حسابات نشطة في النظام.")
         return
 
-    added_list = []
-    if supabase_client:
-        try:
-            res = supabase_client.table("memory_dragon").select("target_id").execute()
-            if res.data: added_list = [str(row["target_id"]) for row in res.data]
-        except: pass
+    # تجهيز يوزر/رابط المصدر
+    target_source = src if src.startswith(("https://", "@")) else f"@{src}"
 
-    target_source = src
-    if not target_source.startswith("https://") and not target_source.startswith("@"):
-        target_source = f"@{target_source}"
+    # 1. تجميع الأهداف المتاحة عبر الأسطول
+    all_targets = []
+    seen_ids = set()
+    active_clients = []
 
-    active_fleet = []
-
-    # 1. محاولة تجهيز الحسابات
     for idx, session_str in enumerate(db_accounts):
-        client = TelegramClient(StringSession(session_str.strip()), MY_API_ID, MY_API_HASH)
+        client = TelegramClient(StringSession(session_str), MY_API_ID, MY_API_HASH)
         try:
             await client.connect()
-            
-            # الانضمام للمجموعة الهدف والمصدر بشكل صامت ومحمي
+            if not await client.is_user_authorized():
+                await client.disconnect()
+                continue
+
+            # الانضمام للمصدر والهدف
             await smart_join(client, trg)
             try:
                 if "joinchat/" in target_source or "+" in target_source:
@@ -169,150 +169,114 @@ async def run_sahm_v73(army, src, trg, total, uid):
                     await client(ImportChatInviteRequest(link_hash))
                 else:
                     await client(JoinChannelRequest(target_source))
-            except: pass
+            except Exception:
+                pass
 
-            account_targets = []
-            captured_ids = set()
-
-            # محاولة قشط الأعضاء
+            # قشط الأعضاء المتاحين من القائمة والرسائل النشطة
             try:
-                async for u in client.iter_participants(target_source, limit=100):
-                    if str(u.id) not in added_list and not u.bot and not u.deleted:
-                        captured_ids.add(u.id)
-                        account_targets.append(u)
-            except: pass
+                async for user in client.iter_participants(target_source, limit=200):
+                    if user.id not in seen_ids and not user.bot and not user.deleted:
+                        seen_ids.add(user.id)
+                        all_targets.append(user)
+            except Exception:
+                pass
 
-            # محاولة قشط الرسائل
-            if len(account_targets) < 10:
+            if len(all_targets) < total_to_add * 2:
                 try:
-                    async for message in client.iter_messages(target_source, limit=1000):
-                        if message.sender_id and str(message.sender_id) not in added_list:
-                            sender = await message.get_sender()
+                    async for msg in client.iter_messages(target_source, limit=1000):
+                        if msg.sender_id and msg.sender_id not in seen_ids:
+                            sender = await msg.get_sender()
                             if isinstance(sender, tl_types.User) and not sender.bot and not sender.deleted:
-                                if sender.id not in captured_ids:
-                                    captured_ids.add(sender.id)
-                                    account_targets.append(sender)
-                except: pass
+                                seen_ids.add(sender.id)
+                                all_targets.append(sender)
+                except Exception:
+                    pass
 
-            # تثبيت الحساب بالأسطول دائماً (حتى لو فشل القشط، نضع مصفوفة فارغة لملئها لاحقاً)
-            active_fleet.append({
-                'index': idx + 1,
-                'client': client,
-                'targets': account_targets,
-                'adds_count': 0,
-                'target_idx': 0,
-                'is_flooded': False
-            })
+            active_clients.append({'index': idx + 1, 'client': client, 'adds': 0})
 
         except Exception as e:
-            # حتى في حال حدوث خطأ كارثي في الاتصال، نقوم بإنقاذ الحساب وإدخاله قسرياً للعمل
-            print(f"Force rescue account {idx+1}: {e}")
-            active_fleet.append({
-                'index': idx + 1,
-                'client': client,
-                'targets': [],
-                'adds_count': 0,
-                'target_idx': 0,
-                'is_flooded': False
-            })
+            print(f"خطأ في إعداد الحساب {idx + 1}: {e}")
 
-    # ================= [ 🛠️ خط الدفاع الصارم: كسر الصفر نهائياً ] =================
-    # التحقق من الحسابات التي نجحت بجمع أهداف
-    usable_fleet = [acc for acc in active_fleet if acc['targets']]
-    
-    # إذا كان الأسطول فارغاً أو الحماية شرسة، نقوم بحقن الأهداف العشوائية الحية قسرياً في كل الحسابات بلا استثناء
-    if not usable_fleet or len(usable_fleet) == 0:
-        import random
-        base_id = random.randint(5500000000, 7800000000)
-        fake_targets = []
-        for i in range(total_to_add * 6):
-            fake_user = tl_types.InputPeerUser(user_id=base_id + i, access_hash=0)
-            fake_targets.append(fake_user)
-            
-        for acc in active_fleet:
-            acc['targets'] = fake_targets.copy()
-            acc['target_idx'] = 0
-            
-        usable_fleet = active_fleet.copy()
+    if not active_clients:
+        bot.send_message(uid, "❌ تعذر الاتصال بالحسابات المربوطة.")
+        return
 
-    # إذا استمرت المشكلة لعدم وجود حسابات مرفوعة أساساً بالملف
-    if not usable_fleet:
-        bot.send_message(uid, "❌ لا توجد أي حسابات مربوطة بالنظام لتشغيلها.")
+    if not all_targets:
+        for item in active_clients:
+            await item['client'].disconnect()
+        bot.send_message(
+            uid, 
+            "⚠️ **المصدر محمي بالكامل:** قائمة الأعضاء مخفية وتاريخ الرسائل مقفل.\n"
+            "💡 **الحل:** استخدم مجموعة مصدر تحتوي على رسائل نشطة أو قائمة أعضاء ظاهرة."
+        )
         return
 
     bot.send_message(
-        uid, f"🚀 **الأسطول المدرع جاهز كلياً بعدد ({len(usable_fleet)}) حسابات.**\n🎯 جاري بدء الطوفان القسري وتحقيق النتيجة الفل..."
+        uid, 
+        f"🎯 **تم جلب `{len(all_targets)}` هدف نشط.**\n"
+        f"🚀 جاري بدء النقل عبر `{len(active_clients)}` حساب..."
     )
 
-    # 2. طوفان النقل بالتناوب الحي المستمر
-    while success < total_to_add:
-        available_accounts = [
-            acc for acc in usable_fleet 
-            if acc['adds_count'] < 40 and not acc['is_flooded'] and acc['target_idx'] < len(acc['targets'])
-        ]
+    # 2. تنفيذ عملية النقل المباشر
+    target_idx = 0
+    client_idx = 0
 
-        if not available_accounts:
-            break 
+    while success < total_to_add and target_idx < len(all_targets):
+        current_worker = active_clients[client_idx % len(active_clients)]
+        client = current_worker['client']
+        user = all_targets[target_idx]
+        target_idx += 1
 
-        for acc in available_accounts:
-            if success >= total_to_add: break
+        try:
+            await client(InviteToChannelRequest(trg, [user]))
+            
+            success += 1
+            current_worker['adds'] += 1
+            current_balance -= PRICE_PER_MEMBER
 
-            client = acc['client']
-            user = acc['targets'][acc['target_idx']]
-            acc['target_idx'] += 1
+            bot.send_message(
+                uid, 
+                f"✅ **تمت الإضافة بنجاح!**\n"
+                f"👤 العضو: `{user.first_name or user.id}`\n"
+                f"📊 التقدم: `{success}/{total_to_add}`"
+            )
+            await asyncio.sleep(random.randint(8, 15))
 
-            try:
-                # محاولة الإضافة الفورية
-                await client(InviteToChannelRequest(trg, [user]))
-                
-                if supabase_client:
-                    try: supabase_client.table("memory_dragon").insert({"target_id": str(user.id)}).execute()
-                    except: pass
-                
-                success += 1
-                acc['adds_count'] += 1
-                current_balance -= PRICE_PER_MEMBER
+        except errors.UserPrivacyRestrictedError:
+            skipped += 1
+            continue
+        except errors.UserAlreadyParticipantError:
+            skipped += 1
+            continue
+        except errors.PeerFloodError:
+            bot.send_message(uid, f"⏳ الحساب [{current_worker['index']}] وصل للحد اليومي (PeerFlood).")
+            active_clients.remove(current_worker)
+            if not active_clients:
+                break
+            continue
+        except Exception as e:
+            skipped += 1
+            continue
 
-                bot.send_message(uid, f"➕ **[{acc['index']}] أضاف بنجاح!**\n📊 العداد الفعلي: `{success}/{total_to_add}`")
-                await asyncio.sleep(random.randint(5, 12))
+        client_idx += 1
 
-            except (errors.UserPrivacyRestrictedError, errors.UserAlreadyParticipantError):
-                continue
-            except errors.FloodWaitError:
-                acc['is_flooded'] = True
-                continue
-            except Exception:
-                continue
-
-    # 3. إغلاق آمن وحفظ الرصيد
-    for acc in usable_fleet:
-        try: await acc['client'].disconnect()
-        except: pass
+    # 3. إغلاق الجلسات والتحديث المالي
+    for item in active_clients:
+        try:
+            await item['client'].disconnect()
+        except Exception:
+            pass
 
     if success > 0:
-        total_deduction = success * PRICE_PER_MEMBER
-        update_balance(uid, -total_deduction)
+        update_balance(uid, -(success * PRICE_PER_MEMBER))
 
     bot.send_message(
-        uid, f"🏁 **اكتملت العملية!**\n\n✅ تم نقل: `{success}` عضو بنجاح الفل.\n💰 الرصيد المحدث: `{get_balance(uid)}`$"
+        uid,
+        f"🏁 **تقرير العملية النهائي:**\n\n"
+        f"✅ المضافون بنجاح: `{success}`\n"
+        f"⏭️ المتخطون (خصوصية/موجودون): `{skipped}`\n"
+        f"💰 الرصيد المتبقي: `{get_balance(uid)}`$"
     )
-    
-# دالة الوسيط لتشغيل الـ Async Loop داخل الـ Thread بشكل صحيح وآمن ومحمي
-def launch_radar_safely(army, src, trg, total, uid):
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # تشغيل دالة الرادار الخارقة المحدثة والمحمية داخلياً بالكامل
-        loop.run_until_complete(run_sahm_v73(army, src, trg, total, uid))
-        loop.close()
-    except Exception as e:
-        # فحص إضافي: إذا تسلل خطأ الجلسة هنا، نطبع رسالة مفهومة بدلاً من الانهيار المبهم
-        if "valid string" in str(e).lower():
-            safe_send(uid, "⚠️ **تنبيه:** تم إلغاء العملية بسبب وجود جلسة تالفة في الانتظار. يرجى مسح الجدول في سوبابيس وإعادة ربط الحساب.")
-        else:
-            safe_send(uid, f"❌ حدث خلل أثناء معالجة عملية الإضافة: {str(e)}")
-
 # ================= [ 🎫 الأوامر الأساسية ولوحة التحكم ] =================
 @bot.message_handler(commands=["start"])
 def start_main(m):

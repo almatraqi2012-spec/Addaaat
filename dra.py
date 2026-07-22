@@ -826,17 +826,19 @@ def run_server():
     # use_reloader=False ضروري جداً لمنع تشغيل السيرفر مرتين
     app_web.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
 
+# ==============================================================================
+# 🚀 تشغيل خادم Flask والبوت بالتوازي
+# ==============================================================================
+def run_flask():
+    # تشغيل خادم الويب في الخلفية لإبقاء الاستضافة حية
+    app.run(host="0.0.0.0", port=10000)
+
+
 if __name__ == "__main__":
-    print("🛰️ جاري تشغيل دراغون V73..")
-    
-    # تشغيل السيرفر
-    threading.Thread(target=run_server, daemon=True).start()
-    
-    # تنظيف تليجرام (مهم جداً لحل خطأ 409)
-    try:
-        bot.remove_webhook()
-    except:
-        pass
-        
-    # بدء البوت
-    bot.infinity_polling(none_stop=True, timeout=60, long_polling_timeout=60)
+    # 1. تشغيل Flask داخل Thread مستقل
+    threading.Thread(target=run_flask, daemon=True).start()
+    print("🌐 تم تشغيل خادم Flask في الخلفية بنجاح.")
+
+    # 2. تشغيل البوت الأساسي لاستقبال الأوامر
+    print("🤖 البوت يعمل الآن ويستقبل الأوامر...")
+    bot.infinity_polling(skip_pending=True)

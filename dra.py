@@ -835,10 +835,15 @@ def run_flask():
 
 
 if __name__ == "__main__":
-    # 1. تشغيل Flask داخل Thread مستقل
+    # تشغيل خادم الويب
     threading.Thread(target=run_flask, daemon=True).start()
-    print("🌐 تم تشغيل خادم Flask في الخلفية بنجاح.")
 
-    # 2. تشغيل البوت الأساسي لاستقبال الأوامر
+    # 1. إزالة أي Webhook قديم لتفادي التعارض 409
+    try:
+        bot.remove_webhook()
+    except Exception as e:
+        print(f"Webhook removal note: {e}")
+
+    # 2. بدء تشغيل البوت بنسخة واحدة
     print("🤖 البوت يعمل الآن ويستقبل الأوامر...")
     bot.infinity_polling(skip_pending=True)

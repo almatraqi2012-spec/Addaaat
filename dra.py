@@ -4,18 +4,14 @@ import os
 import random
 import threading
 import time
-import zipfile
 import requests
 from supabase import Client, create_client
 import telebot
 from telebot import types
-from telethon import TelegramClient, errors, functions
+from telethon import TelegramClient, errors
 from telethon import types as tl_types
 from telethon.sessions import StringSession
-from telethon.tl.functions.channels import (
-    InviteToChannelRequest,
-    JoinChannelRequest,
-)
+from telethon.tl.functions.channels import InviteToChannelRequest
 
 # ================= [ ⚙️ الإعدادات المركزية ] ================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -60,7 +56,6 @@ def get_balance(uid):
         if res.data and len(res.data) > 0:
             return round(float(res.data[0]["balance"]), 2)
 
-        # إنشاء حساب جديد برصيد 0 إن لم يكن موجوداً
         supabase.table("users").upsert(
             {"id": numeric_id, "balance": 0.0}
         ).execute()
@@ -87,7 +82,6 @@ def update_balance(uid, amt):
 
 # ================= [ 📱 إدارة الجلسات والحسابات ] ================
 def save_account_db(user_id, phone_number, session_string):
-    """حفظ الحساب والجلسة النصية في Supabase"""
     if not supabase:
         return
     try:
@@ -102,7 +96,6 @@ def save_account_db(user_id, phone_number, session_string):
 
 
 def get_user_accounts(user_id):
-    """جلب كافة حسابات مستخدم معين"""
     if not supabase:
         return []
     try:
@@ -120,7 +113,6 @@ def get_user_accounts(user_id):
 
 
 def delete_account_db(user_id, phone):
-    """حذف حساب من Supabase"""
     if not supabase:
         return
     try:
@@ -205,7 +197,7 @@ async def run_sahm_v73(army_accounts, src, trg, total, uid):
                     )
                     await asyncio.sleep(random.randint(20, 40))
                 except errors.FloodWaitError:
-                    break  # الانتقال للحساب التالي عند الحظر المؤقت
+                    break
                 except Exception:
                     continue
             await client.disconnect()
@@ -215,7 +207,7 @@ async def run_sahm_v73(army_accounts, src, trg, total, uid):
 
     bot.send_message(
         uid,
-        f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 الرصيد المتبقي: `{get_balance(uid)}$` ",
+        f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 الرصيد المتبقي: `{get_balance(uid)}$`",
     )
 
 
@@ -223,8 +215,6 @@ async def run_sahm_v73(army_accounts, src, trg, total, uid):
 @bot.message_handler(commands=["start"])
 def start_main(m):
     uid = m.chat.id
-
-    # التحقق مما إذا كان المستخدم جديداً في Supabase
     current_bal = get_balance(uid)
 
     params = m.text.split()
@@ -241,15 +231,15 @@ def start_main(m):
                 pass
 
     mk = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    mk.add("⚔️ بدء الأضافه", "➕ إضافة حساب للجيش")
-    mk.add("💰 شحن الرصيد", "👤 حسابي")
-    mk.add("📊 الإحصائيات", "🗑️ حذف حساب", "🎁 كسب رصيد مجاني")
+    mk.add("🚀 بدء السحب", "➡️ إضافة حساب للتليجرام")
+    mk.add("💵 شحن الرصيد", "👤 حسابي")
+    mk.add("📊 الإحصائيات", "❌ حذف حساب", "🎁 كسب رصيد مجاني")
     if uid == ADMIN_ID:
         mk.add("💎 لوحة المالك")
 
     bot.send_message(
         uid,
-        "🐲 **مرحباً بك في دراجون المطور!**\nأسرع نظام لسحب الأعضاء.",
+        "🐲 **مرحباً بك في دراجون المطور!**\nاختر من القائمة أدناه للبدء:",
         reply_markup=mk,
     )
 
@@ -263,96 +253,48 @@ def referral_menu(m):
     )
 
 
-# ================= [ 💳 الشحن والمحفظة ] ================
-@bot.message_handler(func=lambda m: m.text == "💰 شحن الرصيد")
-def payment_menu(m):
-    user_states[m.chat.id] = None
-    mk = types.InlineKeyboardMarkup(row_width=1)
-    mk.add(
-        types.InlineKeyboardButton(
-            "⚡ شحن Oxapay (آلي)", callback_data="pay_oxa"
-        ),
-        types.InlineKeyboardButton(
-            "💳 شحن محفظة (يدوي)", callback_data="pay_man"
-        ),
-    )
-    bot.send_message(
-        m.chat.id, f"💰 رصيدك: `{get_balance(m.chat.id)}$` ", reply_markup=mk
-    )
+# ================= [ 🚀 بدء السحب والإضافة ] ================
+@bot.message_handler(
+    func=lambda m: m.text in ["🚀 بدء السحب", "⚔️ بدء الأضافه"]
+)
+def start_attack_cmd(m):
+    if get_balance(m.chat.id) < PRICE_PER_MEMBER:
+        return bot.send_message(m.chat.id, "❌ رصيدك غير كافٍ للبدء.")
 
-
-@bot.callback_query_handler(func=lambda c: c.data == "pay_oxa")
-def oxa_call(c):
-    msg = bot.send_message(c.message.chat.id, "💵 **أدخل المبلغ ($):**")
-    bot.register_next_step_handler(msg, process_oxa)
-
-
-def process_oxa(m):
-    try:
-        amt = float(m.text)
-        res = requests.post(
-            "https://api.oxapay.com/merchants/request",
-            json={"merchant": OXAPAY_KEY, "amount": amt, "currency": "USD"},
-        ).json()
-        if res.get("payLink"):
-            mk = types.InlineKeyboardMarkup().add(
-                types.InlineKeyboardButton("دفع 🔗", url=res["payLink"])
-            )
-            bot.send_message(m.chat.id, f"✅ فاتورة {amt}$:", reply_markup=mk)
-    except Exception:
-        bot.send_message(m.chat.id, "⚠️ رقم غير صحيح.")
-
-
-@bot.callback_query_handler(func=lambda c: c.data == "pay_man")
-def man_call(c):
-    user_states[c.message.chat.id] = "waiting_receipt"
-    bot.send_message(
-        c.message.chat.id, f"💳 المحفظة:\n`{MY_WALLET}`\n📸 أرسل الإيصال."
-    )
-
-
-@bot.message_handler(content_types=["photo"])
-def handle_receipt(m):
-    if user_states.get(m.chat.id) == "waiting_receipt":
-        mk = types.InlineKeyboardMarkup(row_width=3)
-        mk.add(
-            types.InlineKeyboardButton(
-                "✅ 5$", callback_data=f"set_5_{m.chat.id}"
-            ),
-            types.InlineKeyboardButton(
-                "✅ 10$", callback_data=f"set_10_{m.chat.id}"
-            ),
-            types.InlineKeyboardButton(
-                "✅ 50$", callback_data=f"set_50_{m.chat.id}"
-            ),
+    army = get_user_accounts(m.chat.id)
+    if not army:
+        return bot.send_message(
+            m.chat.id, "❌ لا توجد حسابات مضافة، أضف حساباً أولاً."
         )
-        bot.send_photo(
-            ADMIN_ID,
-            m.photo[-1].file_id,
-            caption=f"📩 إيصال من `{m.chat.id}`",
-            reply_markup=mk,
-        )
-        bot.reply_to(m, "⏳ جارٍ المراجعة...")
-        user_states[m.chat.id] = None
 
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("set_"))
-def admin_confirm(c):
-    _, amt, uid = c.data.split("_")
-    update_balance(int(uid), float(amt))
-    bot.send_message(int(uid), f"🎉 تم شحن {amt}$!")
-    bot.edit_message_caption(
-        f"✅ تم تفعيل {amt}$ للحساب {uid}",
-        c.message.chat.id,
-        c.message.message_id,
+    msg = bot.send_message(m.chat.id, "📡 **أرسل رابط أو يوزر المجموعة المصدر:**")
+    bot.register_next_step_handler(
+        msg,
+        lambda s: bot.register_next_step_handler(
+            bot.send_message(m.chat.id, "🎯 **أرسل رابط أو يوزر مجموعتك:**"),
+            lambda t: bot.register_next_step_handler(
+                bot.send_message(m.chat.id, "🔢 **أدخل العدد المطلوب:**"),
+                lambda n: threading.Thread(
+                    target=lambda: asyncio.run(
+                        run_sahm_v73(
+                            army, s.text, t.text, int(n.text), m.chat.id
+                        )
+                    )
+                ).start(),
+            ),
+        ),
     )
 
 
-# ================= [ 📱 إضافة الحسابات مع Supabase ] ================
-@bot.message_handler(func=lambda m: m.text == "➕ إضافة حساب للجيش")
+# ================= [ ➡️ إضافة حساب ] ================
+@bot.message_handler(
+    func=lambda m: m.text
+    in ["➡️ إضافة حساب للتليجرام", "➕ إضافة حساب للجيش"]
+)
 def add_acc_start(m):
     msg = bot.send_message(
-        m.chat.id, "📱 **أرسل الرقم مع المفتاح الدولي:**"
+        m.chat.id,
+        "📱 **أرسل الرقم المطلوب إضافته مع المفتاح الدولي (مثال: 967xxxxxxxx):**",
     )
     bot.register_next_step_handler(msg, process_phone)
 
@@ -456,13 +398,166 @@ def process_password(m, ph, sess_str):
         loop.close()
 
 
-# ================= [ ⚙️ الإدارة والتشغيل ] ================
+# ================= [ 💵 الشحن والمحفظة ] ================
+@bot.message_handler(
+    func=lambda m: m.text in ["💵 شحن الرصيد", "💰 شحن الرصيد"]
+)
+def payment_menu(m):
+    user_states[m.chat.id] = None
+    mk = types.InlineKeyboardMarkup(row_width=1)
+    mk.add(
+        types.InlineKeyboardButton(
+            "⚡ شحن Oxapay (آلي)", callback_data="pay_oxa"
+        ),
+        types.InlineKeyboardButton(
+            "💳 شحن محفظة (يدوي)", callback_data="pay_man"
+        ),
+    )
+    bot.send_message(
+        m.chat.id, f"💰 رصيدك الحالي: `{get_balance(m.chat.id)}$`", reply_markup=mk
+    )
+
+
+@bot.callback_query_handler(func=lambda c: c.data == "pay_oxa")
+def oxa_call(c):
+    try:
+        bot.answer_callback_query(c.id)
+    except Exception:
+        pass
+    msg = bot.send_message(c.message.chat.id, "💵 **أدخل المبلغ ($):**")
+    bot.register_next_step_handler(msg, process_oxa)
+
+
+def process_oxa(m):
+    try:
+        amt = float(m.text)
+        res = requests.post(
+            "https://api.oxapay.com/merchants/request",
+            json={"merchant": OXAPAY_KEY, "amount": amt, "currency": "USD"},
+        ).json()
+        if res.get("payLink"):
+            mk = types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("دفع 🔗", url=res["payLink"])
+            )
+            bot.send_message(m.chat.id, f"✅ فاتورة {amt}$:", reply_markup=mk)
+    except Exception:
+        bot.send_message(m.chat.id, "⚠️ رقم غير صحيح.")
+
+
+@bot.callback_query_handler(func=lambda c: c.data == "pay_man")
+def man_call(c):
+    try:
+        bot.answer_callback_query(c.id)
+    except Exception:
+        pass
+    user_states[c.message.chat.id] = "waiting_receipt"
+    bot.send_message(
+        c.message.chat.id, f"💳 المحفظة:\n`{MY_WALLET}`\n📸 أرسل الإيصال."
+    )
+
+
+@bot.message_handler(content_types=["photo"])
+def handle_receipt(m):
+    if user_states.get(m.chat.id) == "waiting_receipt":
+        mk = types.InlineKeyboardMarkup(row_width=3)
+        mk.add(
+            types.InlineKeyboardButton(
+                "✅ 5$", callback_data=f"set_5_{m.chat.id}"
+            ),
+            types.InlineKeyboardButton(
+                "✅ 10$", callback_data=f"set_10_{m.chat.id}"
+            ),
+            types.InlineKeyboardButton(
+                "✅ 50$", callback_data=f"set_50_{m.chat.id}"
+            ),
+        )
+        bot.send_photo(
+            ADMIN_ID,
+            m.photo[-1].file_id,
+            caption=f"📩 إيصال من `{m.chat.id}`",
+            reply_markup=mk,
+        )
+        bot.reply_to(m, "⏳ جارٍ المراجعة...")
+        user_states[m.chat.id] = None
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("set_"))
+def admin_confirm(c):
+    try:
+        bot.answer_callback_query(c.id)
+    except Exception:
+        pass
+    _, amt, uid = c.data.split("_")
+    update_balance(int(uid), float(amt))
+    bot.send_message(int(uid), f"🎉 تم شحن {amt}$!")
+    bot.edit_message_caption(
+        f"✅ تم تفعيل {amt}$ للحساب {uid}",
+        c.message.chat.id,
+        c.message.message_id,
+    )
+
+
+# ================= [ ❌ حذف حساب ] ================
+@bot.message_handler(func=lambda m: m.text in ["❌ حذف حساب", "🗑️ حذف حساب"])
+def delete_session_menu(m):
+    uid = m.chat.id
+    try:
+        user_sessions = get_user_accounts(uid)
+
+        if not user_sessions:
+            return bot.send_message(
+                uid, "❌ **لا توجد لديك أي حسابات مضافة حالياً.**"
+            )
+
+        mk = types.InlineKeyboardMarkup(row_width=1)
+        for sess in user_sessions:
+            phone = sess.get("phone")
+            mk.add(
+                types.InlineKeyboardButton(
+                    f"❌ حذف الرقم: +{phone}",
+                    callback_data=f"delsess_{phone}",
+                )
+            )
+
+        bot.send_message(
+            uid,
+            "📱 **اختر الرقم الذي تريد حذفه:**",
+            reply_markup=mk,
+        )
+    except Exception as e:
+        logging.error(f"Error in delete_session_menu: {e}")
+        bot.send_message(uid, "⚠️ حدث خطأ أثناء جلب الحسابات.")
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("delsess_"))
+def process_delete_session(c):
+    try:
+        bot.answer_callback_query(c.id, "جاري الحذف...")
+    except Exception:
+        pass
+
+    uid = c.message.chat.id
+    phone = c.data.split("_")[1]
+
+    try:
+        delete_account_db(uid, phone)
+        bot.edit_message_text(
+            f"✅ **تم حذف الرقم `+{phone}` بنجاح.**\nيمكنك الآن إعادة إضافته عبر (➡️ إضافة حساب للتليجرام).",
+            c.message.chat.id,
+            c.message.message_id,
+        )
+    except Exception as e:
+        logging.error(f"Error in process_delete_session: {e}")
+        bot.send_message(uid, "⚠️ حدث خطأ أثناء محاولة الحذف.")
+
+
+# ================= [ 📊 الإحصائيات والمعلومات ] ================
 @bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")
 def stats_all(m):
     accs = get_user_accounts(m.chat.id)
     bot.send_message(
         m.chat.id,
-        f"📊 **إحصائياتك:**\n📱 الجيش: `{len(accs)}`\n💰 الرصيد: `{get_balance(m.chat.id)}$` ",
+        f"📊 **إحصائياتك:**\n📱 الجيش: `{len(accs)}`\n💰 الرصيد: `{get_balance(m.chat.id)}$`",
     )
 
 
@@ -471,79 +566,12 @@ def info(m):
     accs = get_user_accounts(m.chat.id)
     bot.send_message(
         m.chat.id,
-        f"👤 **حسابك:**\n💰 الرصيد: `{get_balance(m.chat.id)}$` \n📱 الجيش: `{len(accs)}`",
-    )
-
-
-@bot.message_handler(func=lambda m: m.text == "⚔️ بدء الأضافه")
-def start_attack_cmd(m):
-    if get_balance(m.chat.id) < PRICE_PER_MEMBER:
-        return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
-
-    army = get_user_accounts(m.chat.id)
-    if not army:
-        return bot.send_message(m.chat.id, "❌ أضف حسابات أولاً.")
-
-    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر:**")
-    bot.register_next_step_handler(
-        msg,
-        lambda s: bot.register_next_step_handler(
-            bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك:**"),
-            lambda t: bot.register_next_step_handler(
-                bot.send_message(m.chat.id, "🔢 **العدد المطلوب:**"),
-                lambda n: threading.Thread(
-                    target=lambda: asyncio.run(
-                        run_sahm_v73(army, s.text, t.text, int(n.text), m.chat.id)
-                    )
-                ).start(),
-            ),
-        ),
-    )
-
-
-# ================= [ 🗑️ إدارة وحذف حسابات الجيش ] ================
-@bot.message_handler(func=lambda m: m.text == "🗑️ حذف حساب")
-def delete_session_menu(m):
-    uid = m.chat.id
-    user_sessions = get_user_accounts(uid)
-
-    if not user_sessions:
-        return bot.send_message(
-            uid, "❌ **لا توجد لديك أي حسابات مضافة حالياً لحذفها.**"
-        )
-
-    mk = types.InlineKeyboardMarkup(row_width=1)
-    for sess in user_sessions:
-        phone = sess.get("phone")
-        mk.add(
-            types.InlineKeyboardButton(
-                f"❌ حذف الرقم: +{phone}", callback_data=f"delsess_{phone}"
-            )
-        )
-
-    bot.send_message(
-        uid,
-        "📱 **اختر الرقم الذي تريد حذفه من البوت:**",
-        reply_markup=mk,
-    )
-
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("delsess_"))
-def process_delete_session(c):
-    uid = c.message.chat.id
-    phone = c.data.split("_")[1]
-
-    delete_account_db(uid, phone)
-    bot.answer_callback_query(c.id)
-    bot.edit_message_text(
-        f"✅ **تم حذف الرقم `+{phone}` بنجاح.**\nيمكنك الآن إعاده إضافته عبر (➕ إضافة حساب للجيش).",
-        c.message.chat.id,
-        c.message.message_id,
+        f"👤 **حسابك:**\n💰 الرصيد: `{get_balance(m.chat.id)}$`\n📱 الجيش: `{len(accs)}`",
     )
 
 
 if __name__ == "__main__":
-    print("🐲 دراجون V73 ينطلق الآن...")
+    print("🐲 دراجون V73 ينطلق الآن بنجاح...")
     bot.infinity_polling(
         skip_pending=True, timeout=60, long_polling_timeout=60
     )

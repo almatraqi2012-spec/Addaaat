@@ -21,8 +21,8 @@ ADMIN_ID = int(os.environ.get("ADMIN_ID", 6016547718))
 
 OXAPAY_KEY = os.environ.get("OXAPAY_KEY", "CE8H0F-ISXBD2-RXHALY-KZXUZU")
 MY_WALLET = "TLtLuhkU2kkkR1Wz1TtrBTpoNRTNviYpsA"
-PRICE_PER_MEMBER = 0.05
-REFERRAL_GIFT = 0.007
+PRICE_PER_MEMBER = 0.007
+REFERRAL_GIFT = 0.005
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 user_states = {}

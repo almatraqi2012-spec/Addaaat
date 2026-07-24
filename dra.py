@@ -1,328 +1,232 @@
-# =======================================================
-# 🐉 دراغون المحرك V73 - نسخة الأعضاء الأقوياء 🇩🇪🇵🇸
-# الحقوق محفوظة للمطور الرسمي | نظام شهم الجبار
-# الاستضافة المستقرة للبوت سحابياً - بوابة Supabase الأقوى
-# ==========================================================
 import asyncio
-from datetime import datetime, timedelta
-from flask import Flask
-import json
 import logging
 import os
 import random
-import requests
-import telebot
-from telebot import types
 import threading
 import time
-from supabase import create_client, Client
+import zipfile
+import requests
+from supabase import Client, create_client
+import telebot
+from telebot import types
 from telethon import TelegramClient, errors, functions
 from telethon import types as tl_types
-from telethon.tl.functions.channels import InviteToChannelRequest, JoinChannelRequest
-from telethon.tl.functions.messages import (
-    GetHistoryRequest,
-    GetMessagesReactionsRequest,
-)
-from telethon.tl.functions.users import GetFullUserRequest
 from telethon.sessions import StringSession
-# ================= [ ⚙️ الإعدادات المركزية ] =================
+from telethon.tl.functions.channels import (
+    InviteToChannelRequest,
+    JoinChannelRequest,
+)
+
+# ================= [ ⚙️ الإعدادات المركزية ] ================
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-MY_API_ID = 21349867
-MY_API_HASH = "7ced3ee4c80117bd5138410811b91f9f"
-ADMIN_ID = 6016547718
-OXAPAY_KEY = "CE8H0F-ISXBD2-RXHALY-KZXUZU"
-MY_WALLET = "TLtLuhkU2kkkR1Wz1TtrBTpoNRTnviYpsA"
-PRICE_PER_MEMBER = 0.007
-REFERRAL_GIFT = 0.05
+MY_API_ID = int(os.environ.get("API_ID", 21349867))
+MY_API_HASH = os.environ.get("API_HASH", "7ced3ee4c80117bd5138410811b91f9f")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", 6016547718))
+
+OXAPAY_KEY = os.environ.get("OXAPAY_KEY", "CE8H0F-ISXBD2-RXHALY-KZXUZU")
+MY_WALLET = "TLtLuhkU2kkkR1Wz1TtrBTpoNRTNviYpsA"
+PRICE_PER_MEMBER = 0.05
+REFERRAL_GIFT = 0.007
 
 bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 user_states = {}
+telebot.apihelper.CONNECT_TIMEOUT = 30
+telebot.apihelper.READ_TIMEOUT = 60
 
-# ================= [ 🌐 قاعدة البيانات والأرشفة - Supabase ] =================
+# ================= [ ☁️ الاتصال بـ Supabase ] ================
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     logging.error("⚠️ خطأ: متغيرات Supabase غير موجودة في الـ Secrets!")
-    supabase_client = None
+    supabase: Client = None
 else:
-    supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def get_balance(user_id):
-    if not supabase_client:
+
+# ================= [ 💳 إدارة الأرصدة والمستخدمين ] ================
+def get_balance(uid):
+    if not supabase:
         return 0.0
     try:
-        # تحويل لـ int ليطابق حقل int8 في سوبابيس تماماً
-        numeric_id = int(user_id)
-        print(f"DEBUG: Checking balance for user_id (int8): {numeric_id}")
-        
-        response = supabase_client.table("users").select("balance").eq("id", numeric_id).execute()
-        
-        print(f"DEBUG: Database response: {response.data}")
-        
-        if response.data and len(response.data) > 0:
-            return round(float(response.data[0]["balance"]), 3)
-        
-        # إذا لم يكن موجوداً، ننشئه كـ int8 برصيد صفر
-        print(f"DEBUG: User {numeric_id} not found. Creating fresh profile...")
-        supabase_client.table("users").upsert({"id": numeric_id, "balance": 0.0}).execute()
+        numeric_id = int(uid)
+        res = (
+            supabase.table("users")
+            .select("balance")
+            .eq("id", numeric_id)
+            .execute()
+        )
+
+        if res.data and len(res.data) > 0:
+            return round(float(res.data[0]["balance"]), 2)
+
+        # إنشاء حساب جديد برصيد 0 إن لم يكن موجوداً
+        supabase.table("users").upsert(
+            {"id": numeric_id, "balance": 0.0}
+        ).execute()
         return 0.0
     except Exception as e:
-        print(f"DEBUG: Error in get_balance: {e}")
+        logging.error(f"Error in get_balance: {e}")
         return 0.0
 
-def update_balance(user_id, amt):
-    if not supabase_client:
+
+def update_balance(uid, amt):
+    if not supabase:
         return
     try:
-        numeric_id = int(user_id)
-        current_balance = get_balance(numeric_id)
-        new_balance = round(current_balance + float(amt), 3)
-        
-        # تحديث كـ int8 لضمان الحفظ الصحيح للرصيد
-        supabase_client.table("users").upsert({"id": numeric_id, "balance": new_balance}).execute()
-        logging.info(f"✅ تم تحديث الرصيد للمستخدم {numeric_id} إلى {new_balance}")
+        numeric_id = int(uid)
+        current_bal = get_balance(numeric_id)
+        new_bal = round(current_bal + float(amt), 2)
+
+        supabase.table("users").upsert(
+            {"id": numeric_id, "balance": new_bal}
+        ).execute()
     except Exception as e:
         logging.error(f"Error in update_balance: {e}")
-        
-# تأكد أن دالة الحفظ تستقبل الـ session_string النقي
-# دالة الحفظ المحدثة بالكامل لاستقبال الرقم والجلسة معاً
+
+
+# ================= [ 📱 إدارة الجلسات والحسابات ] ================
 def save_account_db(user_id, phone_number, session_string):
-    if not supabase_client:
+    """حفظ الحساب والجلسة النصية في Supabase"""
+    if not supabase:
         return
     try:
-        numeric_id = int(user_id)
-        supabase_client.table("telegram_accounts").upsert(
-            {
-                "user_id": numeric_id,
-                "phone": str(phone_number).strip(),    # حفظ الرقم في عموده الصحيح
-                "session_string": str(session_string), # الكود المشفر الطويل
-                "status": "active"
-            }
-        ).execute()
-        logging.info(f"✅ تم حفظ الحساب بنجاح في السوبابيس للمستخدم {numeric_id}")
+        supabase.table("telegram_accounts").upsert({
+            "user_id": int(user_id),
+            "phone": str(phone_number).strip(),
+            "session_string": str(session_string).strip(),
+            "status": "active",
+        }).execute()
     except Exception as e:
         logging.error(f"Error in save_account_db: {e}")
-def get_memory():
-    if not supabase_client:
+
+
+def get_user_accounts(user_id):
+    """جلب كافة حسابات مستخدم معين"""
+    if not supabase:
         return []
     try:
-        response = supabase_client.table("memory_dragon").select("target_id").execute()
-        return [row["target_id"] for row in response.data] if response.data else []
+        res = (
+            supabase.table("telegram_accounts")
+            .select("phone, session_string")
+            .eq("user_id", int(user_id))
+            .eq("status", "active")
+            .execute()
+        )
+        return res.data if res.data else []
+    except Exception as e:
+        logging.error(f"Error in get_user_accounts: {e}")
+        return []
+
+
+def delete_account_db(user_id, phone):
+    """حذف حساب من Supabase"""
+    if not supabase:
+        return
+    try:
+        supabase.table("telegram_accounts").delete().eq(
+            "user_id", int(user_id)
+        ).eq("phone", str(phone)).execute()
+    except Exception as e:
+        logging.error(f"Error in delete_account_db: {e}")
+
+
+# ================= [ 🧠 إدارة الذاكرة ] ================
+def save_user_memory(target_id):
+    if not supabase:
+        return
+    try:
+        supabase.table("memory").upsert(
+            {"target_id": str(target_id)}
+        ).execute()
+    except Exception as e:
+        logging.error(f"Error in save_user_memory: {e}")
+
+
+def get_memory():
+    if not supabase:
+        return []
+    try:
+        res = supabase.table("memory").select("target_id").execute()
+        return [row["target_id"] for row in res.data] if res.data else []
     except Exception as e:
         logging.error(f"Error in get_memory: {e}")
         return []
 
-def safe_send(uid, text):
-    def run():
-        try:
-            bot.send_message(uid, text, parse_mode="Markdown")
-        except:
-            pass
-    import threading
-    threading.Thread(target=run).start()
-# ================= [ 🚀 محرك الرادار المطور والأمن V74 ] =================
-# ==============================================================================
-# 🚀 محرك الرادار والمداورة المكتمل (رصيد + سوبابيس + مداورة)
-# ==============================================================================
-async def run_sahm_v73(army, src, trg, total, uid):
-    bot.send_message(
-        uid,
-        "🚀 تم تشغيل المحرك المكتمل V75!\n⚙️ جاري فحص الرصيد وجلب السجل وتجهيز الحسابات...",
-    )
 
-    # 1️⃣ فحص الرصيد المالي والحد المسموح به
-    current_balance = get_balance(uid)
-    max_allowed_by_balance = int(current_balance // PRICE_PER_MEMBER)
-    total_to_add = min(total, max_allowed_by_balance)
+# ================= [ ⚔️ محرك سهم V73 ] ================
+async def run_sahm_v73(army_accounts, src, trg, total, uid):
+    success = 0
+    bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري بدء الإضافة.**")
 
-    if total_to_add <= 0:
-        bot.send_message(
-            uid,
-            f"❌ رصيدك الحالي ({current_balance}$) غير كافي لنقل أي عضو.",
-        )
-        return
+    for acc in army_accounts:
+        if success >= total or get_balance(uid) < PRICE_PER_MEMBER:
+            break
 
-    # 2️⃣ جلب القائمة السوداء من Supabase لمنع التكرار
-    added_list = []
-    if supabase_client:
-        try:
-            res = (
-                supabase_client.table("memory_dragon")
-                .select("target_id")
-                .execute()
-            )
-            if res.data:
-                added_list = [str(row["target_id"]) for row in res.data]
-        except Exception as e:
-            print(f"DEBUG Error fetching Supabase blacklist: {e}")
+        session_str = acc.get("session_string")
+        phone = acc.get("phone")
 
-    # 3️⃣ تجهيز أسطول الحسابات وقشط الأهداف غير المسجلة
-    db_accounts = [s.strip() for s in army if s]
-    if not db_accounts:
-        bot.send_message(uid, "❌ لا توجد حسابات نشطة ممررة للمحرك!")
-        return
-
-    active_clients = []
-    all_targets = []
-
-    for idx, session_str in enumerate(db_accounts):
         client = TelegramClient(
             StringSession(session_str), MY_API_ID, MY_API_HASH
         )
         try:
             await client.connect()
             if not await client.is_user_authorized():
-                await client.disconnect()
                 continue
 
-            account_targets = []
-            async for message in client.iter_messages(src, limit=2000):
-                if len(account_targets) >= 100:
+            added_list = get_memory()
+            targets = []
+
+            async for m in client.iter_messages(src, limit=3000):
+                if len(targets) >= 100:
                     break
+                if m.sender_id and str(m.sender_id) not in added_list:
+                    u = await m.get_sender()
+                    if isinstance(u, tl_types.User) and not u.bot:
+                        if u.id not in [x.id for x in targets]:
+                            targets.append(u)
 
+            count = 0
+            for t in targets:
                 if (
-                    message.sender_id
-                    and str(message.sender_id) not in added_list
+                    success >= total
+                    or count >= 40
+                    or get_balance(uid) < PRICE_PER_MEMBER
                 ):
-                    sender = await message.get_sender()
-                    if (
-                        isinstance(sender, types.User)
-                        and not sender.bot
-                        and not sender.deleted
-                    ):
-                        if sender.id not in [u.id for u in all_targets]:
-                            account_targets.append(sender)
-                            all_targets.append(sender)
-                            added_list.append(str(sender.id))
-
-            if account_targets:
-                active_clients.append(
-                    {
-                        "index": idx + 1,
-                        "client": client,
-                        "adds": 0,
-                        "flooded": False,
-                    }
-                )
-            else:
-                await client.disconnect()
-
-        except Exception:
-            try:
-                await client.disconnect()
-            except Exception:
-                pass
-
-    if not active_clients:
-        bot.send_message(
-            uid,
-            "❌ فشل صيد أي أعضاء. المصدر محمي تماماً أو الحسابات معطلة.",
-        )
-        return
+                    break
+                try:
+                    await client(InviteToChannelRequest(trg, [t]))
+                    save_user_memory(t.id)
+                    update_balance(uid, -PRICE_PER_MEMBER)
+                    success += 1
+                    count += 1
+                    bot.send_message(
+                        uid, f"➕ [{phone}] أضاف: `{t.first_name}`"
+                    )
+                    await asyncio.sleep(random.randint(20, 40))
+                except errors.FloodWaitError:
+                    break  # الانتقال للحساب التالي عند الحظر المؤقت
+                except Exception:
+                    continue
+            await client.disconnect()
+        except Exception as e:
+            logging.error(f"Error in client task: {e}")
+            continue
 
     bot.send_message(
         uid,
-        f"🎯 تم صيد {len(all_targets)} هدفاً بنجاح.\n"
-        f"💰 الحد المسموح برصيدك: {total_to_add} عضو.\n"
-        f"⚡ جاري إطلاق المداورة الحية لتنفيذ النقل...",
+        f"🏁 **اكتملت المهمة!**\n✅ الإضافة: `{success}`\n💰 الرصيد المتبقي: `{get_balance(uid)}$` ",
     )
 
-    # 4️⃣ تنفيذ المداورة التناوبية + خصم الرصيد والحفظ في Supabase
-    success_count = 0
-    target_index = 0
 
-    while target_index < len(all_targets) and success_count < total_to_add:
-        available = [
-            c for c in active_clients if c["adds"] < 15 and not c["flooded"]
-        ]
-
-        if not available:
-            break
-
-        for item in available:
-            if (
-                target_index >= len(all_targets)
-                or success_count >= total_to_add
-            ):
-                break
-
-            user = all_targets[target_index]
-            target_index += 1
-            client = item["client"]
-
-            try:
-                await client(
-                    functions.channels.InviteToChannelRequest(trg, [user])
-                )
-
-                # حفظ المعرف في Supabase لمنع التكرار
-                if supabase_client:
-                    try:
-                        supabase_client.table("memory_dragon").insert(
-                            {"target_id": str(user.id)}
-                        ).execute()
-                    except Exception:
-                        pass
-
-                item["adds"] += 1
-                success_count += 1
-                current_balance -= PRICE_PER_MEMBER
-
-                bot.send_message(
-                    uid,
-                    f"➕ [{item['index']}] أضاف بنجاح: {user.first_name or user.id}\n"
-                    f"📊 إجمالي المضافين: {success_count} / {total_to_add}",
-                )
-
-                await asyncio.sleep(random.randint(20, 45))
-
-            except (
-                errors.UserPrivacyRestrictedError,
-                errors.UserAlreadyParticipantError,
-            ):
-                if supabase_client:
-                    try:
-                        supabase_client.table("memory_dragon").insert(
-                            {"target_id": str(user.id)}
-                        ).execute()
-                    except Exception:
-                        pass
-                continue
-
-            except errors.FloodWaitError:
-                item["flooded"] = True
-                bot.send_message(
-                    uid,
-                    f"⏳ الحساب رقم {item['index']} أصيب بالفلود وتم إخراجه مؤقتاً.",
-                )
-                continue
-            except Exception:
-                continue
-
-    # 5️⃣ إغلاق كافة الجلسات المفتوحة
-    for item in active_clients:
-        try:
-            await item["client"].disconnect()
-        except Exception:
-            pass
-
-    # 6️⃣ التحديث النهائي للرصيد في قاعدة البيانات
-    if success_count > 0:
-        total_deduction = success_count * PRICE_PER_MEMBER
-        update_balance(uid, -total_deduction)
-
-    bot.send_message(
-        uid,
-        f"🏁 اكتملت العملية بنجاح!\n\n"
-        f"✅ إجمالي المضافين الفعلي: {success_count}\n"
-        f"💰 رصيدك المتبقي الفعلي: {get_balance(uid)}$",
-    )
-# ================= [ 🎫 الأوامر الأساسية ولوحة التحكم ] =================
+# ================= [ 📱 الواجهة ونظام الإحالة ] ================
 @bot.message_handler(commands=["start"])
 def start_main(m):
     uid = m.chat.id
-    get_balance(uid)
+
+    # التحقق مما إذا كان المستخدم جديداً في Supabase
+    current_bal = get_balance(uid)
+
     params = m.text.split()
     if len(params) > 1 and params[1].isdigit():
         ref_id = int(params[1])
@@ -331,20 +235,21 @@ def start_main(m):
             try:
                 bot.send_message(
                     ref_id,
-                    f"🎉 **مبارك!** دخل عضو جديد برابطك، كسبت `{REFERRAL_GIFT}`$.",
+                    f"🎊 **بشارة!** دخل صديق برابطك، حصلت على `{REFERRAL_GIFT}$`.",
                 )
-            except:
+            except Exception:
                 pass
 
     mk = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    mk.add("🚀 بدء السحب", "➡️ إضافة حساب للتليجرام")
-    mk.add("💵 شحن الرصيد", "👤 حسابي")
-    mk.add("📊 الإحصائيات", "❌ حذف حساب", "🎁 كسب رصيد مجاني")
+    mk.add("⚔️ بدء الأضافه", "➕ إضافة حساب للجيش")
+    mk.add("💰 شحن الرصيد", "👤 حسابي")
+    mk.add("📊 الإحصائيات", "🗑️ حذف حساب", "🎁 كسب رصيد مجاني")
     if uid == ADMIN_ID:
-        mk.add("⚙️ لوحة الأدمن")
+        mk.add("💎 لوحة المالك")
+
     bot.send_message(
         uid,
-        "🐉 **مرحباً بك في بوت دراغون المحرك V73**\nأهلاً بك في أقوى منصة كاشفة وساحبة للأعضاء الحقيقيين والمتفاعلين.. سيزيد ترتيب مجموعتك الآن .",
+        "🐲 **مرحباً بك في دراجون المطور!**\nأسرع نظام لسحب الأعضاء.",
         reply_markup=mk,
     )
 
@@ -354,496 +259,291 @@ def referral_menu(m):
     ref_link = f"https://t.me/{bot.get_me().username}?start={m.chat.id}"
     bot.send_message(
         m.chat.id,
-        f"🎁 **نظام الإحالة كالتالي:**\nانشر رابطك واكسب رصيد مجاني عن كل مستخدم يقيد حساباته:\n`{ref_link}`",
+        f"🎁 **نظام الإحالات:**\n\nرابطك لربح `{REFERRAL_GIFT}$`:\n`{ref_link}`",
     )
 
 
-# ================= [ 💳 شحن الرصيد والمدفوعات ] =================
-@bot.message_handler(func=lambda m: m.text == "💵 شحن الرصيد")
+# ================= [ 💳 الشحن والمحفظة ] ================
+@bot.message_handler(func=lambda m: m.text == "💰 شحن الرصيد")
 def payment_menu(m):
+    user_states[m.chat.id] = None
     mk = types.InlineKeyboardMarkup(row_width=1)
     mk.add(
-        types.InlineKeyboardButton("🔺 شحن آلي (Oxapay)", callback_data="pay_oxa"),
-        types.InlineKeyboardButton("💳 شحن يدوي (إيداع)", callback_data="pay_man"),
+        types.InlineKeyboardButton(
+            "⚡ شحن Oxapay (آلي)", callback_data="pay_oxa"
+        ),
+        types.InlineKeyboardButton(
+            "💳 شحن محفظة (يدوي)", callback_data="pay_man"
+        ),
     )
     bot.send_message(
-        m.chat.id, f"💵 رصيدك الحالي هو: `{get_balance(m.chat.id)}`$", reply_markup=mk
+        m.chat.id, f"💰 رصيدك: `{get_balance(m.chat.id)}$` ", reply_markup=mk
     )
 
 
 @bot.callback_query_handler(func=lambda c: c.data == "pay_oxa")
 def oxa_call(c):
-    msg = bot.send_message(
-        c.message.chat.id, "💵 **أدخل القيمة المطلوبة بالدولار ($):**"
-    )
+    msg = bot.send_message(c.message.chat.id, "💵 **أدخل المبلغ ($):**")
     bot.register_next_step_handler(msg, process_oxa)
 
 
 def process_oxa(m):
-    if not m.text:
-        return
     try:
-        amt = float(m.text.strip())
-        payload = {
-            "merchant": OXAPAY_KEY,
-            "amount": amt,
-            "currency": "USD",
-            "description": str(m.chat.id),
-        }
+        amt = float(m.text)
         res = requests.post(
-            "https://api.oxapay.com/merchants/request", json=payload
+            "https://api.oxapay.com/merchants/request",
+            json={"merchant": OXAPAY_KEY, "amount": amt, "currency": "USD"},
         ).json()
-
-        track_id = res.get("trackId")
-        pay_url = res.get("payLink")
-
-        if pay_url:
-            markup = types.InlineKeyboardMarkup()
-            markup.add(
-                types.InlineKeyboardButton("💳 اضغط هنا للدفع الآمن", url=pay_url)
+        if res.get("payLink"):
+            mk = types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("دفع 🔗", url=res["payLink"])
             )
-            bot.send_message(
-                m.chat.id,
-                f"⏳ جاري تجهيز فاتورة بقيمة {amt}$ (دفع تلقائي):\n🔗 سيتم فحص دفعك دورياً بمجرد إرسال الدفع.",
-                reply_markup=markup,
-            )
-            threading.Thread(
-                target=auto_check_payment, args=(m.chat.id, track_id, amt)
-            ).start()
-        else:
-            bot.send_message(m.chat.id, "❌ عذراً، خطأ في اتخاذ رابط الدفع.")
-    except:
-        bot.send_message(m.chat.id, "⚠️ يرجى إرسال المبلغ بالأرقام فقط.")
-
-
-def auto_check_payment(chat_id, track_id, amount):
-    for _ in range(60):
-        time.sleep(60)
-        try:
-            check = requests.post(
-                "https://api.oxapay.com/merchants/inquiry",
-                json={"merchant": OXAPAY_KEY, "trackId": track_id},
-            ).json()
-            if (
-                check.get("status") == "Paid"
-                or check.get("result") == "100"
-                or check.get("result") == 100
-            ):
-                update_balance(chat_id, amount)
-                bot.send_message(
-                    chat_id,
-                    f"🎉 **مبارك!** تم استقبال الدفع التلقائي للمبلغ.\n💵 تم إضافة `{amount}$` إلى رصيدك بنجاح.",
-                )
-                break
-        except:
-            continue
+            bot.send_message(m.chat.id, f"✅ فاتورة {amt}$:", reply_markup=mk)
+    except Exception:
+        bot.send_message(m.chat.id, "⚠️ رقم غير صحيح.")
 
 
 @bot.callback_query_handler(func=lambda c: c.data == "pay_man")
 def man_call(c):
     user_states[c.message.chat.id] = "waiting_receipt"
     bot.send_message(
-        c.message.chat.id,
-        f"🏢 **الشحن اليدوي:**\n\nالمحفظة USDT TRC20:\n`{MY_WALLET}`\n\n📷 أرسل صورة الوصل أو لقطة الشاشة بعد الإيداع.",
+        c.message.chat.id, f"💳 المحفظة:\n`{MY_WALLET}`\n📸 أرسل الإيصال."
     )
 
 
 @bot.message_handler(content_types=["photo"])
 def handle_receipt(m):
     if user_states.get(m.chat.id) == "waiting_receipt":
-        mk = types.InlineKeyboardMarkup().add(
-            types.InlineKeyboardButton("✅ 5$", callback_data=f"set_5_{m.chat.id}"),
-            types.InlineKeyboardButton("✅ 10$", callback_data=f"set_10_{m.chat.id}"),
-            types.InlineKeyboardButton("✅ 50$", callback_data=f"set_50_{m.chat.id}"),
+        mk = types.InlineKeyboardMarkup(row_width=3)
+        mk.add(
+            types.InlineKeyboardButton(
+                "✅ 5$", callback_data=f"set_5_{m.chat.id}"
+            ),
+            types.InlineKeyboardButton(
+                "✅ 10$", callback_data=f"set_10_{m.chat.id}"
+            ),
+            types.InlineKeyboardButton(
+                "✅ 50$", callback_data=f"set_50_{m.chat.id}"
+            ),
         )
         bot.send_photo(
             ADMIN_ID,
             m.photo[-1].file_id,
-            caption=f"📩 وصل شحن جديد\n👤 للمستثمر: `{m.chat.id}`",
+            caption=f"📩 إيصال من `{m.chat.id}`",
             reply_markup=mk,
         )
-        bot.reply_to(
-            m, "⏳ تم استلام إيصال الدفع، جاري مراجعته والتحقق منه من قبل الإدارة..."
-        )
+        bot.reply_to(m, "⏳ جارٍ المراجعة...")
         user_states[m.chat.id] = None
 
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("set_"))
 def admin_confirm(c):
-    try:
-        _, amt, uid = c.data.split("_")
-        update_balance(int(uid), float(amt))
-        bot.send_message(
-            int(uid), f"🎉 **مبارك!** تم قبول إيصالك وشحن رصيدك بمبلغ {amt}$ بنجاح."
-        )
-        bot.edit_message_caption(
-            f"✅ تم قبول الشحن بنجاح للمستخدم {uid} بمبلغ ({amt}$)",
-            c.message.chat.id,
-            c.message.message_id,
-        )
-    except Exception as e:
-        bot.answer_callback_query(c.id, f"❌ حدث خلل في العملية: {e}")
+    _, amt, uid = c.data.split("_")
+    update_balance(int(uid), float(amt))
+    bot.send_message(int(uid), f"🎉 تم شحن {amt}$!")
+    bot.edit_message_caption(
+        f"✅ تم تفعيل {amt}$ للحساب {uid}",
+        c.message.chat.id,
+        c.message.message_id,
+    )
 
 
-# ================= [ ⚙️ تشغيل وربط الحسابات ] =================
-# ================= [ ⚙️ تشغيل وربط الحسابات المحدث بالسوبابيس ] =================
-@bot.message_handler(func=lambda m: m.text == "➡️ إضافة حساب للتليجرام")
+# ================= [ 📱 إضافة الحسابات مع Supabase ] ================
+@bot.message_handler(func=lambda m: m.text == "➕ إضافة حساب للجيش")
 def add_acc_start(m):
-    msg = bot.send_message(m.chat.id, "📱 **أرسل رقم الهاتف مع مفتاح الدولة:**")
+    msg = bot.send_message(
+        m.chat.id, "📱 **أرسل الرقم مع المفتاح الدولي:**"
+    )
     bot.register_next_step_handler(msg, process_phone)
 
 
 def process_phone(m):
-    if not m.text:
-        return
     ph = m.text.strip().replace("+", "").replace(" ", "")
     if not ph.isdigit():
-        return bot.send_message(m.chat.id, "⚠️ الرقم غير صحيح.")
-    sess = f"sess_{m.chat.id}_{ph}"
+        return bot.send_message(m.chat.id, "⚠️ أرقام فقط.")
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    cl = TelegramClient(sess, MY_API_ID, MY_API_HASH, loop=loop)
+    cl = TelegramClient(StringSession(), MY_API_ID, MY_API_HASH, loop=loop)
 
     async def get_c():
         await cl.connect()
         try:
             res = await cl.send_code_request(ph)
-            return res.phone_code_hash, "OK"
+            sess_str = cl.session.save()
+            return res.phone_code_hash, sess_str, "OK"
         except Exception as e:
-            return str(e), "ERR"
+            return str(e), None, "ERR"
         finally:
             await cl.disconnect()
 
     try:
-        h, status = loop.run_until_complete(get_c())
+        h, sess_str, status = loop.run_until_complete(get_c())
         if status == "OK":
-            msg = bot.send_message(m.chat.id, "📩 **أرسل كود التحقق:**")
-            bot.register_next_step_handler(msg, process_code, ph, h, sess)
+            msg = bot.send_message(m.chat.id, "📩 **أرسل الكود:**")
+            bot.register_next_step_handler(
+                msg, process_code, ph, h, sess_str
+            )
         else:
             bot.send_message(m.chat.id, f"❌ {h}")
     except Exception as e:
-        bot.send_message(m.chat.id, f"⚠️ عذراً: {str(e)}")
+        bot.send_message(m.chat.id, f"⚠️ عطل: {str(e)}")
     finally:
         loop.close()
 
 
-def process_code(m, ph, h, sess):
-    if not m.text:
-        return
+def process_code(m, ph, h, sess_str):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
-    # استخدام StringSession فارغ لاستخراج النص الصافي
-    from telethon.sessions import StringSession
-    cl = TelegramClient(StringSession(), MY_API_ID, MY_API_HASH, loop=loop)
+    cl = TelegramClient(
+        StringSession(sess_str), MY_API_ID, MY_API_HASH, loop=loop
+    )
 
     async def sign():
         await cl.connect()
         try:
             await cl.sign_in(ph, m.text, phone_code_hash=h)
-            # 🔥 استخراج الجلسة بصيغة النص الخام المتوافق 100%
-            pure_string = str(cl.session.save())
-            return "OK", pure_string
+            final_session = cl.session.save()
+            return "OK", final_session
         except errors.SessionPasswordNeededError:
-            return "2FA", None
+            return "2FA", cl.session.save()
         except Exception as e:
             return str(e), None
         finally:
             await cl.disconnect()
 
     try:
-        res, session_str = loop.run_until_complete(sign())
+        res, final_sess = loop.run_until_complete(sign())
         if res == "OK":
-            bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة السحابية!**")
-            save_account_db(m.chat.id, ph, session_str)
+            save_account_db(m.chat.id, ph, final_sess)
+            bot.send_message(m.chat.id, "✅ **تم الربط وحفظ الحساب!**")
         elif res == "2FA":
-            msg = bot.send_message(m.chat.id, "🔒 **أرسل رمز التحقق بخطوتين:**")
-            bot.register_next_step_handler(msg, process_password, sess, ph)
+            msg = bot.send_message(m.chat.id, "🔐 **أرسل كلمة سر 2FA:**")
+            bot.register_next_step_handler(
+                msg, process_password, ph, final_sess
+            )
         else:
             bot.send_message(m.chat.id, f"❌ {res}")
-    except Exception as e:
-        print(f"DEBUG Error in process_code: {e}")
     finally:
         loop.close()
 
 
-def process_password(m, sess, ph):
-    if not m.text:
-        return
+def process_password(m, ph, sess_str):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
-    from telethon.sessions import StringSession
-    cl = TelegramClient(StringSession(), MY_API_ID, MY_API_HASH, loop=loop)
+    cl = TelegramClient(
+        StringSession(sess_str), MY_API_ID, MY_API_HASH, loop=loop
+    )
 
     async def sign_p():
         await cl.connect()
         try:
             await cl.sign_in(password=m.text)
-            # 🔥 استخراج الجلسة بصيغة النص الخام هنا أيضاً
-            pure_string = str(cl.session.save())
-            return "OK", pure_string
+            return "OK", cl.session.save()
         except Exception as e:
             return str(e), None
         finally:
             await cl.disconnect()
 
     try:
-        res, session_str = loop.run_until_complete(sign_p())
+        res, final_sess = loop.run_until_complete(sign_p())
         if res == "OK":
-            bot.send_message(m.chat.id, "✅ **تم ربط الحساب بنجاح وتوليد الجلسة السحابية!**")
-            save_account_db(m.chat.id, ph, session_str)
+            save_account_db(m.chat.id, ph, final_sess)
+            bot.send_message(m.chat.id, "✅ **تم الربط وحفظ الحساب!**")
         else:
-            bot.send_message(m.chat.id, f"❌ خطأ في التحقق: {res}")
-    except Exception as e:
-        print(f"DEBUG Error in process_password: {e}")
+            bot.send_message(m.chat.id, f"❌ خطأ: {res}")
     finally:
         loop.close()
-# ================= [ ⚙️ العرض وحذف الحسابات المتواجدة ] =================
+
+
+# ================= [ ⚙️ الإدارة والتشغيل ] ================
 @bot.message_handler(func=lambda m: m.text == "📊 الإحصائيات")
 def stats_all(m):
-    # تحويل المعرف لـ int لضمان مطابقة int8 في سوبابيس
-    uid = int(m.chat.id)
-    
-    # 1. جلب الرصيد الحقيقي من القاعدة
-    bal = get_balance(uid)
-    
-    # 2. جلب إجمالي عدد حسابات المستخدم من سوبابيس بدلاً من المجلد المحلي
-    army_count = 0
-    if supabase_client:
-        try:
-            response = supabase_client.table("telegram_accounts").select("id").eq("user_id", uid).execute()
-            if response.data:
-                army_count = len(response.data)
-        except Exception as e:
-            print(f"DEBUG Error fetching stats count from db: {e}")
-
-    # 3. إرسال الإحصائيات الدقيقة
+    accs = get_user_accounts(m.chat.id)
     bot.send_message(
         m.chat.id,
-        f"📊 **إحصائياتك:**\n📱 الحسابات: `{army_count}`\n💵 الرصيد المتاح: `{bal}`$ ",
-        parse_mode="Markdown"
+        f"📊 **إحصائياتك:**\n📱 الجيش: `{len(accs)}`\n💰 الرصيد: `{get_balance(m.chat.id)}$` ",
     )
 
 
-# ================= [ 🛠️ نظام الحذف السحابي المتزامن التلقائي ] =================
-
-@bot.message_handler(func=lambda m: m.text == "❌ حذف حساب")
-def delete_acc_menu(m):
-    # 1. جلب الحسابات مباشرة من عمود accounts بجدول users
-    army = []
-    if supabase_client:
-        try:
-            res = supabase_client.table("users").select("accounts").eq("user_id", str(m.chat.id)).execute()
-            if res.data and res.data[0].get("accounts"):
-                # تقسيم السطور وتنظيف الحسابات
-                army = [s.strip() for s in res.data[0]["accounts"].split("\n") if s.strip()]
-        except Exception as e:
-            print(f"DEBUG Error fetching accounts for deletion: {e}")
-
-    # 2. التحقق الصارم من وجود حسابات (لمنع التناقض)
-    if not army:
-        return bot.send_message(m.chat.id, "❌ لا توجد حسابات مربوطة.")
-
-    # 3. بناء الأزرار الذكية بناءً على الترتيب الفعلي للحسابات
-    mk = types.InlineKeyboardMarkup()
-    for idx, session_str in enumerate(army):
-        # نستخرج آخر 10 أحرف من جلسة السلسلة لتمييز الحساب للمستخدم بأمان
-        short_id = session_str[-10:] if len(session_str) > 10 else f"الحساب {idx+1}"
-        mk.add(types.InlineKeyboardButton(f"❌ حذف: ...{short_id}", callback_data=f"del_dragon_{idx}"))
-        
-    bot.send_message(m.chat.id, "اختر الحساب للمسح نهائياً من النظام السحابي:", reply_markup=mk)
+@bot.message_handler(func=lambda m: m.text == "👤 حسابي")
+def info(m):
+    accs = get_user_accounts(m.chat.id)
+    bot.send_message(
+        m.chat.id,
+        f"👤 **حسابك:**\n💰 الرصيد: `{get_balance(m.chat.id)}$` \n📱 الجيش: `{len(accs)}`",
+    )
 
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("del_dragon_"))
-def finalize_delete(c):
-    # استخراج رقم الترتيب المراد حذفه
-    try:
-        acc_index = int(c.data.replace("del_dragon_", ""))
-    except:
-        return bot.answer_callback_query(c.id, "❌ بيانات غير صالحة.")
-
-    if not supabase_client:
-        return bot.answer_callback_query(c.id, "❌ سوبابيس غير متصل حالياً.")
-
-    try:
-        # 1. جلب القائمة الحالية من قاعدة البيانات لتفادي مسح بيانات خاطئة
-        res = supabase_client.table("users").select("accounts").eq("user_id", str(c.message.chat.id)).execute()
-        
-        if not res.data or not res.data[0].get("accounts"):
-            bot.answer_callback_query(c.id, "❌ لم يتم العثور على الحسابات.")
-            return
-
-        army = [s.strip() for s in res.data[0]["accounts"].split("\n") if s.strip()]
-
-        # 2. التأكد من أن الترتيب المطلوب حذفه موجود فعلاً في النطاق
-        if acc_index >= len(army):
-            bot.answer_callback_query(c.id, "❌ تم تحديث الحسابات مسبقاً.")
-            return
-
-        # 3. إزالة الحساب المحدد من القائمة
-        removed_acc = army.pop(acc_index)
-        
-        # 4. إعادة دمج الحسابات المتبقية وإرسالها مجدداً لسوبابيس لتحديث العمود
-        updated_accounts_str = "\n".join(army)
-        
-        supabase_client.table("users").update({"accounts": updated_accounts_str}).eq("user_id", str(c.message.chat.id)).execute()
-
-        # 5. تأكيد الحذف بنجاح وتحديث واجهة المستخدم فوراً
-        bot.answer_callback_query(c.id, "✅ تم الحذف بنجاح من السحابة")
-        
-        # استخراج رمز تمييزي مصغر للحساب المحذوف للتأكيد
-        short_id = removed_acc[-10:] if len(removed_acc) > 10 else f"رقم {acc_index + 1}"
-        
-        bot.edit_message_text(
-            f"✅ **تم إلغاء ربط الحساب بنجاح وحذفه نهائياً من السيرفر!**\n⚙️ الحساب المحذوف: `...{short_id}`\n📦 الحسابات المتبقية الحالية: `{len(army)}`",
-            c.message.chat.id,
-            c.message.message_id,
-        )
-
-    except Exception as e:
-        print(f"Error executing cloud deletion: {e}")
-        bot.answer_callback_query(c.id, f"❌ حدث خلل أثناء الحذف: {str(e)}")
-
-# =====================================================================
-# 🚀 تعديل التوجيه والتحكم في زر البدء (تم تصحيح المدخلات والـ Threads والسوبابيس)
-# =====================================================================
-@bot.message_handler(func=lambda m: m.text in ["🚀 بدء السحب", "⚔️ بدء الأضافه"])
+@bot.message_handler(func=lambda m: m.text == "⚔️ بدء الأضافه")
 def start_attack_cmd(m):
-    uid = int(m.chat.id)
-    
-    # 1. التحقق من الرصيد
-    if get_balance(uid) < PRICE_PER_MEMBER:
+    if get_balance(m.chat.id) < PRICE_PER_MEMBER:
         return bot.send_message(m.chat.id, "❌ رصيد منخفض.")
-    
-    # 2. جلب الحسابات النشطة مباشرة وبشكل مرن
-    army = []
-    if supabase_client:
-        try:
-            res = supabase_client.table("telegram_accounts").select("session_string").eq("user_id", uid).eq("status", "active").execute()
-            if res.data:
-                # نأخذ نصوص الجلسات وننظف المسافات فقط دون شروط معقدة
-                army = [row["session_string"].strip() for row in res.data if row.get("session_string")]
-        except Exception as e:
-            print(f"DEBUG Error fetching army from DB: {e}")
 
-    # 3. التحقق من وجود حسابات في المصفوفة
+    army = get_user_accounts(m.chat.id)
     if not army:
         return bot.send_message(m.chat.id, "❌ أضف حسابات أولاً.")
 
-    # إذا نجح، ينتقل للخطوة التالية فوراً
-    msg = bot.send_message(m.chat.id, "📡 **أدخل يوزر المصدر (بدون @):**")
-    bot.register_next_step_handler(msg, get_source_user, army)
-
-def get_source_user(m, army):
-    if not m.text:
-        return
-    # تنظيف المدخلات تلقائياً من الروابط ورموز الـ @
-    source = m.text.strip().replace("@", "").split("/")[-1]
-    msg = bot.send_message(m.chat.id, "🎯 **أدخل يوزر مجموعتك للـنقل إليها (بدون @):**")
-    bot.register_next_step_handler(msg, get_target_group, army, source)
-
-
-def get_target_group(m, army, source):
-    if not m.text:
-        return
-    # تنظيف الرابط تلقائياً وتحويله لاسم مستخدم نقي قابل للإضافة
-    target = m.text.strip().replace("@", "").split("/")[-1]
-    msg = bot.send_message(m.chat.id, "🔢 **أدخل العدد الإجمالي المطلوب نقله:**")
-    bot.register_next_step_handler(msg, start_radar_execution, army, source, target)
-
-# 1️⃣ الدالة الأولى: تجهيز البيئة لتشغيل المحرك بدون تجميد البوت
-def launch_radar_safely(army, source, target, total_needed, chat_id):
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # تشغيل دالة النقل
-        loop.run_until_complete(
-            run_sahm_v73(army, source, target, total_needed, chat_id)
-        )
-        loop.close()
-    except Exception as e:
-        print(f"❌ خطأ المحرك: {e}")
-        try:
-            bot.send_message(chat_id, f"❌ حدث خطأ أثناء التشغيل:\n`{str(e)}`")
-        except Exception:
-            pass
-
-
-# 2️⃣ الدالة الثانية: استقبال الأمر وإطلاق العملية
-def start_radar_execution(m, army, source, target):
-    if not m.text:
-        return
-    try:
-        total_needed = int(m.text.strip())
-        bot.send_message(m.chat.id, "⏳ جاري تحضير المحرك وإطلاق الحسابات...")
-
-        threading.Thread(
-            target=launch_radar_safely,
-            args=(army, source, target, total_needed, m.chat.id),
-            daemon=True,
-        ).start()
-    except ValueError:
-        bot.send_message(m.chat.id, "⚠️ خطأ: يرجى إدخال أرقام فقط للعدد المطلوب.")
-
-# -------------- [ قسم حسابي ومعلومات المستثمر ] --------------
-@bot.message_handler(func=lambda m: m.text == "👤 حسابي")
-def info(m):
-    # تحويل المعرف لـ int لضمان مطابقة int8 في سوبابيس
-    uid = int(m.chat.id)
-    
-    # 1. جلب الرصيد من القاعدة
-    bal = get_balance(uid)
-    
-    # 2. جلب عدد الحسابات النشطة للمستخدم مباشرة من سوبابيس
-    army_count = 0
-    if supabase_client:
-        try:
-            response = supabase_client.table("telegram_accounts").select("id").eq("user_id", uid).eq("status", "active").execute()
-            if response.data:
-                army_count = len(response.data)
-        except Exception as e:
-            print(f"DEBUG Error fetching accounts count from db: {e}")
-
-    # 3. إرسال النص المحدث
-    bot.send_message(
-        m.chat.id,
-        f"👤 **حسابك:**\n💵 الرصيد: `{bal}$` \n📦 الحسابات النشطة: `{army_count}`",
-        parse_mode="Markdown"
+    msg = bot.send_message(m.chat.id, "📡 **يوزر المصدر:**")
+    bot.register_next_step_handler(
+        msg,
+        lambda s: bot.register_next_step_handler(
+            bot.send_message(m.chat.id, "🎯 **يوزر مجموعتك:**"),
+            lambda t: bot.register_next_step_handler(
+                bot.send_message(m.chat.id, "🔢 **العدد المطلوب:**"),
+                lambda n: threading.Thread(
+                    target=lambda: asyncio.run(
+                        run_sahm_v73(army, s.text, t.text, int(n.text), m.chat.id)
+                    )
+                ).start(),
+            ),
+        ),
     )
 
 
-# ================= [ 🌐 خادم ويب مصغر لإبقاء البوت حياً ] =================
-app_web = Flask(__name__)
+# ================= [ 🗑️ إدارة وحذف حسابات الجيش ] ================
+@bot.message_handler(func=lambda m: m.text == "🗑️ حذف حساب")
+def delete_session_menu(m):
+    uid = m.chat.id
+    user_sessions = get_user_accounts(uid)
 
-@app_web.route("/")
-def health_check():
-    return "Dragon V73 Pro is Running Safely!", 200
+    if not user_sessions:
+        return bot.send_message(
+            uid, "❌ **لا توجد لديك أي حسابات مضافة حالياً لحذفها.**"
+        )
 
-def run_server():
-    PORT = int(os.environ.get("PORT", 10000))
-    # use_reloader=False ضروري جداً لمنع تشغيل السيرفر مرتين
-    app_web.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)
+    mk = types.InlineKeyboardMarkup(row_width=1)
+    for sess in user_sessions:
+        phone = sess.get("phone")
+        mk.add(
+            types.InlineKeyboardButton(
+                f"❌ حذف الرقم: +{phone}", callback_data=f"delsess_{phone}"
+            )
+        )
 
-# ==============================================================================
-# 🚀 تشغيل خادم Flask والبوت بالتوازي
-# ==============================================================================
-def run_flask():
-    # تشغيل خادم الويب في الخلفية لإبقاء الاستضافة حية
-    app.run(host="0.0.0.0", port=10000)
+    bot.send_message(
+        uid,
+        "📱 **اختر الرقم الذي تريد حذفه من البوت:**",
+        reply_markup=mk,
+    )
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("delsess_"))
+def process_delete_session(c):
+    uid = c.message.chat.id
+    phone = c.data.split("_")[1]
+
+    delete_account_db(uid, phone)
+    bot.answer_callback_query(c.id)
+    bot.edit_message_text(
+        f"✅ **تم حذف الرقم `+{phone}` بنجاح.**\nيمكنك الآن إعاده إضافته عبر (➕ إضافة حساب للجيش).",
+        c.message.chat.id,
+        c.message.message_id,
+    )
 
 
 if __name__ == "__main__":
-    # تشغيل خادم الويب
-    threading.Thread(target=run_flask, daemon=True).start()
-
-    # 1. إزالة أي Webhook قديم لتفادي التعارض 409
-    try:
-        bot.remove_webhook()
-    except Exception as e:
-        print(f"Webhook removal note: {e}")
-
-    # 2. بدء تشغيل البوت بنسخة واحدة
-    print("🤖 البوت يعمل الآن ويستقبل الأوامر...")
-    bot.infinity_polling(skip_pending=True)
+    print("🐲 دراجون V73 ينطلق الآن...")
+    bot.infinity_polling(
+        skip_pending=True, timeout=60, long_polling_timeout=60
+    )

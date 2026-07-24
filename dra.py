@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import random
-import re
 import threading
 import time
 import requests
@@ -124,7 +123,7 @@ def delete_account_db(user_id, phone):
         logging.error(f"Error in delete_account_db: {e}")
 
 
-# ================= [ 🧠 إدارة الذاكرة لمنع التكرار ] ================
+# ================= [ 🧠 إدارة الذاكرة ] ================
 def save_user_memory(target_id):
     if not supabase:
         return
@@ -147,72 +146,10 @@ def get_memory():
         return []
 
 
-# ================= [ 🔍 خوارزمية جلب الكيانات الذكية ] ================
-async def resolve_entity_safely(client, identifier):
-    """جلب المجموعة أو العضو بالتراتب: آيدي -> يوزر -> اسم"""
-    if not identifier:
-        return None
-    identifier_str = str(identifier).strip()
-
-    # 1. جلب بالآيدي العددي
-    if identifier_str.lstrip("-").isdigit():
-        try:
-            return await client.get_entity(int(identifier_str))
-        except Exception:
-            pass
-
-    # 2. جلب باليوزر أو الرابط
-    try:
-        clean_user = identifier_str.split("/")[-1].replace("@", "")
-        return await client.get_entity(clean_user)
-    except Exception:
-        pass
-
-    # 3. جلب بالاسم من المحادثات المفتوحة
-    try:
-        async for dialog in client.iter_dialogs(limit=100):
-            if (
-                dialog.name and identifier_str.lower() in dialog.name.lower()
-            ):
-                return dialog.entity
-    except Exception:
-        pass
-
-    return None
-
-
-async def extract_users_from_message(message):
-    """استخراج المعرفات من كاتب الرسالة ومن داخل نص الرسالة"""
-    found = []
-
-    # كاتب الرسالة
-    if message.sender_id:
-        found.append(message.sender_id)
-
-    # الإشارات داخل النص
-    if message.entities:
-        for entity in message.entities:
-            if isinstance(entity, tl_types.MessageEntityMention):
-                found.append(
-                    message.text[entity.offset : entity.offset + entity.length]
-                )
-            elif isinstance(entity, tl_types.MessageEntityMentionName):
-                found.append(entity.user_id)
-
-    # التعبير النمطي للرموز واليوزرات داخل الرسالة
-    if message.text:
-        found.extend(re.findall(r"@[a-zA-Z0-9_]{5,32}", message.text))
-
-    return list(set(found))
-
-
-# ================= [ ⚔️ محرك سهم الشامل V73 ] ================
+# ================= [ ⚔️ محرك سهم V73 ] ================
 async def run_sahm_v73(army_accounts, src, trg, total, uid):
     success = 0
-    bot.send_message(uid, "🚀 **تفعيل رادار سهم الشامل... جاري بدء الإضافة.**")
-
-    # تحميل الذاكرة لمنع التكرار نهائياً
-    added_ids = set(get_memory())
+    bot.send_message(uid, "🚀 **تفعيل رادار سهم... جاري بدء الإضافة.**")
 
     for acc in army_accounts:
         if success >= total or get_balance(uid) < PRICE_PER_MEMBER:
@@ -229,33 +166,17 @@ async def run_sahm_v73(army_accounts, src, trg, total, uid):
             if not await client.is_user_authorized():
                 continue
 
-            # التعرف على المجموعة المصدر والهدف بكل الطرق (آيدي/يوزر/اسم/رموز)
-            src_entity = await resolve_entity_safely(client, src)
-            trg_entity = await resolve_entity_safely(client, trg)
-
-            if not src_entity or not trg_entity:
-                continue
-
+            added_list = get_memory()
             targets = []
 
-            # استخراج الأعضاء والرسائل والنصوص
-            async for m in client.iter_messages(src_entity, limit=3000):
+            async for m in client.iter_messages(src, limit=3000):
                 if len(targets) >= 100:
                     break
-
-                candidates = await extract_users_from_message(m)
-
-                for cand in candidates:
-                    cand_str = str(cand)
-                    if cand_str not in added_ids and cand not in [
-                        x.id for x in targets
-                    ]:
-                        try:
-                            u = await resolve_entity_safely(client, cand)
-                            if isinstance(u, tl_types.User) and not u.bot:
-                                targets.append(u)
-                        except Exception:
-                            continue
+                if m.sender_id and str(m.sender_id) not in added_list:
+                    u = await m.get_sender()
+                    if isinstance(u, tl_types.User) and not u.bot:
+                        if u.id not in [x.id for x in targets]:
+                            targets.append(u)
 
             count = 0
             for t in targets:
@@ -266,11 +187,8 @@ async def run_sahm_v73(army_accounts, src, trg, total, uid):
                 ):
                     break
                 try:
-                    await client(InviteToChannelRequest(trg_entity, [t]))
-
+                    await client(InviteToChannelRequest(trg, [t]))
                     save_user_memory(t.id)
-                    added_ids.add(str(t.id))
-
                     update_balance(uid, -PRICE_PER_MEMBER)
                     success += 1
                     count += 1
@@ -282,7 +200,6 @@ async def run_sahm_v73(army_accounts, src, trg, total, uid):
                     break
                 except Exception:
                     continue
-
             await client.disconnect()
         except Exception as e:
             logging.error(f"Error in client task: {e}")
@@ -350,17 +267,11 @@ def start_attack_cmd(m):
             m.chat.id, "❌ لا توجد حسابات مضافة، أضف حساباً أولاً."
         )
 
-    msg = bot.send_message(
-        m.chat.id,
-        "📡 **أرسل المصدر (آيدي، يوزر @، رابط، أو اسم المجموعة):**",
-    )
+    msg = bot.send_message(m.chat.id, "📡 **أرسل رابط أو يوزر المجموعة المصدر:**")
     bot.register_next_step_handler(
         msg,
         lambda s: bot.register_next_step_handler(
-            bot.send_message(
-                m.chat.id,
-                "🎯 **أرسل مجموعتك (آيدي، يوزر @، رابط، أو اسم المجموعة):**",
-            ),
+            bot.send_message(m.chat.id, "🎯 **أرسل رابط أو يوزر مجموعتك:**"),
             lambda t: bot.register_next_step_handler(
                 bot.send_message(m.chat.id, "🔢 **أدخل العدد المطلوب:**"),
                 lambda n: threading.Thread(

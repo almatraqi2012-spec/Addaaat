@@ -13,7 +13,7 @@ from telethon import types as tl_types
 from telethon.sessions import StringSession
 from telethon.tl.functions.channels import InviteToChannelRequest
 
-# ================= [ ⚙️ الإعدادات المركزية ] ================
+# ================= [ ⚙️ الإعدادات المركزية ] ===============
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 MY_API_ID = int(os.environ.get("API_ID", 21349867))
 MY_API_HASH = os.environ.get("API_HASH", "7ced3ee4c80117bd5138410811b91f9f")
